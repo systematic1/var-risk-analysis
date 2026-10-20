@@ -10,4 +10,11 @@ public class VarEngineApplication {
         SpringApplication.run(VarEngineApplication.class, args);
     }
 
+    public VarEngineApplication() {
+
+    }
+
+    public void Run() {
+
+    }
 }
