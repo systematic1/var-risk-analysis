@@ -10,7 +10,7 @@ import java.util.List;
 
 public class MatrixServices {
 
-    private static final Logger log = LoggerFactory.getLogger(MatrixServices.class);
+    //private static final Logger log = LoggerFactory.getLogger(MatrixServices.class);
 
     // R<t> = ln (P<t>/P<t-1>)
     public INDArray createLogarithmicReturns(INDArray prices)
