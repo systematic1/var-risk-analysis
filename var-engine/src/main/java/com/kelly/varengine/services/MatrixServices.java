@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 
+@Service
 public class MatrixServices {
 
     //private static final Logger log = LoggerFactory.getLogger(MatrixServices.class);

@@ -1,12 +1,12 @@
 package models;
 
 public class OHLCVSeries {
-    double openPrice;
-    double highPrice;
-    double lowPrice;
-    double closePrice;
-    double adjClosePrice;
-    int volume;
+    private double openPrice;
+    private double highPrice;
+    private double lowPrice;
+    private double closePrice;
+    private double adjClosePrice;
+    private int volume;
 
     public OHLCVSeries() { }
 

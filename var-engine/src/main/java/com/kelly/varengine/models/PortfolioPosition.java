@@ -1,12 +1,12 @@
 package models;
 
 public class PortfolioPosition {
-    int assetId;
-    byte assetClass;
-    String symbol;
-    double currentValue;
-    int quantity;
-    double weight;
+    private int assetId;
+    private byte assetClass;
+    private String symbol;
+    private double currentValue;
+    private int quantity;
+    private double weight;
 
     public PortfolioPosition() { }
 
