@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="4ae1c16b-4372-426d-9ca9-810458fa066b" name="Changes" comment="Added some matrix calculations, started on VaR helper methods" />
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Enum" />
+        <option value="Class" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/.." />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;systematic1&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/systematic1/var-risk-analysis&quot;,
+    &quot;accountId&quot;: &quot;70d9e57d-9c86-4848-8e27-3a191b0154ff&quot;
+  }
+}</component>
+  <component name="MavenImportPreferences">
+    <option name="generalSettings">
+      <MavenGeneralSettings>
+        <option name="mavenHomeTypeForPersistence" value="WRAPPER" />
+      </MavenGeneralSettings>
+    </option>
+  </component>
+  <component name="NextEditCompletionFeaturesState">
+    <decayedCancelled>
+      <entry key="MS100" value="1.0301855104184336" />
+      <entry key="MS500" value="1.5121640375718965" />
+      <entry key="S2" value="2.573721718144142" />
+      <entry key="S5" value="4.6290566068720915" />
+      <entry key="S10" value="7.315693126146636" />
+      <entry key="S30" value="11.508311157002534" />
+      <entry key="S60" value="13.616413654965257" />
+      <entry key="M2" value="17.332240472175265" />
+      <entry key="M5" value="30.64351421477178" />
+      <entry key="M10" value="49.039793533470366" />
+      <entry key="M15" value="66.33433738292361" />
+      <entry key="M30" value="126.09822532129418" />
+      <entry key="H1" value="252.80823680335607" />
+      <entry key="H2" value="434.8133553400633" />
+      <entry key="H4" value="609.2753845643391" />
+      <entry key="D1" value="839.3003775403071" />
+      <entry key="W1" value="890.1297138844288" />
+    </decayedCancelled>
+    <decayedSelected>
+      <entry key="MS100" value="0.0" />
+      <entry key="MS500" value="9.473471925233207E-224" />
+      <entry key="S2" value="1.7543946452252582E-56" />
+      <entry key="S5" value="4.985120641211378E-23" />
+      <entry key="S10" value="7.113771955316209E-12" />
+      <entry key="S30" value="2.3462397413653217E-4" />
+      <entry key="S60" value="0.022667108538537963" />
+      <entry key="M2" value="0.2737039427513495" />
+      <entry key="M5" value="1.5307826348233426" />
+      <entry key="M10" value="3.526965669615019" />
+      <entry key="M15" value="6.232449457132998" />
+      <entry key="M30" value="17.682958881662508" />
+      <entry key="H1" value="41.60843042554627" />
+      <entry key="H2" value="73.38504489954146" />
+      <entry key="H4" value="101.66206779453583" />
+      <entry key="D1" value="136.39321291883064" />
+      <entry key="W1" value="143.73096657806448" />
+    </decayedSelected>
+    <decayedShown>
+      <entry key="MS100" value="0.9815938751118796" />
+      <entry key="MS500" value="1.4982713610895637" />
+      <entry key="S2" value="2.5677073682300318" />
+      <entry key="S5" value="4.617215700617776" />
+      <entry key="S10" value="7.298440237398701" />
+      <entry key="S30" value="11.495043595089673" />
+      <entry key="S60" value="13.62428628004346" />
+      <entry key="M2" value="17.5742837534523" />
+      <entry key="M5" value="32.1171364640706" />
+      <entry key="M10" value="52.50423773727823" />
+      <entry key="M15" value="72.49738395581149" />
+      <entry key="M30" value="143.6882745857706" />
+      <entry key="H1" value="294.31325499232514" />
+      <entry key="H2" value="508.112989161712" />
+      <entry key="H4" value="710.880963080219" />
+      <entry key="D1" value="975.6815148832281" />
+      <entry key="W1" value="1033.8588774579227" />
+    </decayedShown>
+  </component>
+  <component name="ProblemsViewState">
+    <option name="selectedTabId" value="CurrentFile" />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 1,
+  &quot;fromUser&quot;: false
+}</component>
+  <component name="ProjectId" id="3KpjS52YZ47dHLrbrhpBASJ5JGe" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Downloaded.Files.Path.Enabled&quot;: &quot;false&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;Repository.Attach.Annotations&quot;: &quot;false&quot;,
+    &quot;Repository.Attach.JavaDocs&quot;: &quot;false&quot;,
+    &quot;Repository.Attach.Sources&quot;: &quot;false&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
+    &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;project.structure.last.edited&quot;: &quot;Project&quot;,
+    &quot;project.structure.proportion&quot;: &quot;0.15&quot;,
+    &quot;project.structure.side.proportion&quot;: &quot;0.28850573&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;reference.projectsettings.compiler.javacompiler&quot;,
+    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;
+  }
+}</component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-jdk-30f59d01ecdd-37e91769500f-intellij.indexing.shared.core-IU-261.24374.151" />
+        <option value="bundled-js-predefined-d6986cc7102b-31caf2ab9e3c-JavaScript-IU-261.24374.151" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="4ae1c16b-4372-426d-9ca9-810458fa066b" name="Changes" comment="" />
+      <created>1792261403215</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1792261403215</updated>
+    </task>
+    <task id="LOCAL-00001" summary="Initial commit">
+      <option name="closed" value="true" />
+      <created>1792263526297</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1792263526297</updated>
+    </task>
+    <task id="LOCAL-00002" summary="Added some models and basic service classes">
+      <option name="closed" value="true" />
+      <created>1792466062354</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1792466062354</updated>
+    </task>
+    <task id="LOCAL-00003" summary="Added some matrix calculations, started on VaR helper methods">
+      <option name="closed" value="true" />
+      <created>1792548591349</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1792548591349</updated>
+    </task>
+    <option name="localTasksCounter" value="4" />
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="Initial commit" />
+    <MESSAGE value="Added some models and basic service classes" />
+    <MESSAGE value="Added some matrix calculations, started on VaR helper methods" />
+    <option name="LAST_COMMIT_MESSAGE" value="Added some matrix calculations, started on VaR helper methods" />
+  </component>
+</project>
