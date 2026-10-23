@@ -1,7 +1,9 @@
+package com.kelly.varengine;
+
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.beans.factory.annotation.*;
-import services.*;
+import com.kelly.varengine.services.*;
 
 @SpringBootApplication
 public class VarEngineApplication {

@@ -1,6 +1,6 @@
-package services;
+package com.kelly.varengine.services;
 
-import models.PortfolioPosition;
+import com.kelly.varengine.models.PortfolioPosition;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
 import org.slf4j.Logger;

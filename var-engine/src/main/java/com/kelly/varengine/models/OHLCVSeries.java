@@ -1,4 +1,4 @@
-package models;
+package com.kelly.varengine.models;
 
 public class OHLCVSeries {
     private double openPrice;

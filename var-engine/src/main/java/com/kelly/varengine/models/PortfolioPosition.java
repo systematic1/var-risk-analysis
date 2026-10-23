@@ -1,4 +1,4 @@
-package models;
+package com.kelly.varengine.models;
 
 public class PortfolioPosition {
     private int assetId;

@@ -1,4 +1,4 @@
-package services;
+package com.kelly.varengine.services;
 
 import java.util.Random;
 import org.nd4j.linalg.api.ndarray.INDArray;
