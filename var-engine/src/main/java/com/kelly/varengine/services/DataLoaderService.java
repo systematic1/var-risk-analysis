@@ -14,7 +14,12 @@ public class DataLoaderService {
         dataSource = new MassiveMarketDataSource();
     }
 
-    public List<OHLCVSeries> getHistoricalQuotes(String symbol, LocalDate startDate, LocalDate endDate) {
+    public HashMap<LocalDate, OHLCVSeries> getHistoricalQuotes(
+            String symbol,
+            LocalDate startDate,
+            LocalDate endDate)
+        throws IllegalArgumentException, SecurityException, Exception
+    {
         return dataSource.getDailyQuotes(symbol, startDate, endDate);
     }
 }

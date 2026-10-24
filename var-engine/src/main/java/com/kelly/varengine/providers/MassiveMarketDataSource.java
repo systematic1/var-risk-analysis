@@ -1,12 +1,17 @@
 package com.kelly.varengine.providers;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.kelly.varengine.models.OHLCVSeries;
 import org.springframework.beans.factory.annotation.*;
+import org.springframework.boot.autoconfigure.web.format.DateTimeFormatters;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpStatusCodeException;
 
+import java.net.*;
+import java.net.http.*;
 import java.time.LocalDate;
-import java.util.List;
-import java.util.Locale;
-import java.util.Optional;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 
 public class MassiveMarketDataSource {
 
@@ -30,51 +35,93 @@ public class MassiveMarketDataSource {
 
     public MassiveMarketDataSource() { }
 
-    public List<OHLCVSeries> getDailyQuotes(String symbol, LocalDate fromDate, LocalDate toDate) {
-        /*
-        ---- C# version to convert ----
+    public HashMap<LocalDate, OHLCVSeries> getDailyQuotes(String symbol,
+                                                          LocalDate fromDate,
+                                                          LocalDate toDateInclusive)
+            throws IllegalArgumentException, SecurityException, Exception {
 
-        if (string.IsNullOrWhiteSpace(_options.ApiKey))
-            throw new InvalidOperationException("Massive: ApiKey is not configured.");
+        HttpClient http = HttpClient.newHttpClient();
+        if (apiKey.isBlank())
+            throw new IllegalArgumentException("Massive-ApiKey is not configured.");
 
-        string symbol = MapTicker(ticker);
-        string fromStr = fromDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        string toStr = toDateInclusive.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        symbol = mapTicker(symbol);
+        String fromStr = fromDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        String toStr = toDateInclusive.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
 
-        string? url = $"{_options.BaseUrl.TrimEnd('/')}/v2/aggs/ticker/{Uri.EscapeDataString(symbol)}" +
-                      $"/range/1/day/{fromStr}/{toStr}?adjusted={(_options.Adjusted ? "true" : "false")}&sort=asc&limit=50000";
+        String url = String.format("%s/v2/aggs/ticker/%s/range/1/day/%s/%s?adjusted=true&sort=asc&limit=50000",
+                baseUrl, symbol, fromStr, toStr);
 
-        var quotes = new Dictionary<DateOnly, DailyQuote>();
+        var quotes = new HashMap<LocalDate, OHLCVSeries>();
         int page = 0;
 
-        while (url != null && ++page <= _options.MaxPages)
-        {
-            _log.LogInformation("GET {Url}", url);   // logged WITHOUT the API key
+        while (url != null && ++page <= maxPages) {
+            var request = HttpRequest.newBuilder()
+                    .uri(new URI(withApiKey(url)))
+                    .header("Accept", "application/json")
+                    .GET()
+                    .build();
+            var response = http.send(request, HttpResponse.BodyHandlers.ofString());
 
-            using var response = await _http.GetAsync(WithApiKey(url), ct);
+            if (response.statusCode() == 401 || response.statusCode() == 403)
+                throw new SecurityException("Massive rejected the request - no API key was provided, or your plan does not include this data.");
 
-            if (RateLimitedException.IsRateLimited(response))
-                throw RateLimitedException.FromResponse(response, ticker);
+            String body = response.body();
+            if (response.statusCode() != 200)
+                throw new Exception(String.format("Massive API call failed with code", response.statusCode()));
 
-            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
-                throw new HttpRequestException(
-                    $"HTTP: Massive rejected the request for {ticker} (HTTP {(int)response.StatusCode}): " +
-                    "invalid API key, or your plan does not include this data.");
-
-            string body = await response.Content.ReadAsStringAsync(ct);
-            if (!response.IsSuccessStatusCode)
-            {
-                throw new HttpRequestException(
-                    $"HTTP: Massive returned HTTP {(int)response.StatusCode} for {ticker}: {Truncate(body, 300)}");
-            }
-
-            url = ParsePage(body, ticker, quotes);
+            url = parsePage(body, symbol, quotes);
         }
 
-        return quotes.Values.OrderBy(q => q.TradeDate).ToList();
+        return quotes;
     }
 
-    /// <summary>Reads one response page into <paramref name="into"/>; returns next_url (or null when finished).</summary>
+    private String parsePage(String json, String symbol, HashMap<LocalDate, OHLCVSeries> into) {
+        // Convert the json string into a MsvResult record instance
+        // Iterate over the MsvResult.results list and add each item to the "into" HashMap
+        // Return MsvResult.next_url, or null if next_url is empty
+        return null;
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record MsvBar(double c, double h, double l, int n, double o, long t, int v, double vw) { }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record MsvResult(boolean adjusted, String next_url, int queryCount, String request_id,
+                             List<MsvBar> results, int resultsCount, String status, String ticker) { }
+    /*
+    {
+  "adjusted": true,
+  "next_url": "https://api.massive.com/v2/aggs/ticker/AAPL/range/1/day/1578114000000/2020-01-10?cursor=bGltaXQ9MiZzb3J0PWFzYw",
+  "queryCount": 2,
+  "request_id": "6a7e466379af0a71039d60cc78e72282",
+  "results": [
+    {
+      "c": 75.0875,
+      "h": 75.15,
+      "l": 73.7975,
+      "n": 1,
+      "o": 74.06,
+      "t": 1577941200000,
+      "v": 135647456,
+      "vw": 74.6099
+    },
+    {
+      "c": 74.3575,
+      "h": 75.145,
+      "l": 74.125,
+      "n": 1,
+      "o": 74.2875,
+      "t": 1578027600000,
+      "v": 146535512,
+      "vw": 74.7026
+    }
+  ],
+  "resultsCount": 2,
+  "status": "OK",
+  "ticker": "AAPL"
+}
+        ---- C# version to convert ----
+
     internal static string? ParsePage(string json, string ticker, Dictionary<DateOnly, DailyQuote> into)
     {
         using var doc = JsonDocument.Parse(json);
@@ -97,7 +144,8 @@ public class MassiveMarketDataSource {
                     continue;
 
                 Num(r, "v", out var v);
-                if (h < l) continue;
+                if (h < l)
+                    continue;
 
                 // Daily bars are stamped at the start of the trading day in US Eastern time.
                 var utc = DateTimeOffset.FromUnixTimeMilliseconds((long)t).UtcDateTime;
@@ -119,9 +167,7 @@ public class MassiveMarketDataSource {
         return root.TryGetProperty("next_url", out var next) && next.ValueKind == JsonValueKind.String
             ? next.GetString()
             : null;
-         */
-        return null;
-    }
+    */
 
     private String withApiKey(String url) {
         return url + (url.contains("?") ? "&" : "?") + "apiKey=" +
