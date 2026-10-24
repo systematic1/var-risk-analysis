@@ -33,12 +33,12 @@ public class VarEngineApplication {
         // Creates several positions & weights
         // Loads historical backtest data via Massive or Alpaca
         // Transforms historical data into matrix
-        // Computes the logarthmic returns matrix
+        // Computes the logarithmic returns matrix
         // Computes the dynamic weight of the log returns
         // Fills in gaps
         // Creates covariance matrix
         // Creates a Z-Score and VaR amount based on 2 confidence levels
-        // Creates Colesky Decomposition matrix and uses the L matrix value
+        // Creates Cholesky Decomposition matrix and uses the L matrix value
         // Runs the configured number of random trials
 
         // Produces the following output:
@@ -59,7 +59,7 @@ public class VarEngineApplication {
         //  Key Parametric Outcome tables  <example>
         //      ===> Headers:  Asset/Risk Component      Position Weight    Standalone VaR   Marginal VaR   Component VaR
         //                     US Equities (S&P 500)     50%                $165,000         $125,000       $62,500
-        //                     Global Nonds (Agg)        50%                $45,000          $15,000        $6,000
+        //                     Global Bonds (Agg)        50%                $45,000          $15,000        $6,000
         //                     Undiversified Total       100%               $210,000         $140,000       $68,500
         //                     Diversification Benefit   --                 -$130,000        --             --
         //                     Portfolio Parametric VaR  100%               $80,000          --             $80,000
