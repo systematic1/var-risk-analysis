@@ -1,8 +1,10 @@
 package com.kelly.varengine.models;
 
+import com.kelly.varengine.enums.AssetClassEnum;
+
 public class PortfolioPosition {
     private int assetId;
-    private byte assetClass;
+    private AssetClassEnum assetClass;
     private String symbol;
     private double currentValue;
     private int quantity;
@@ -10,7 +12,7 @@ public class PortfolioPosition {
 
     public PortfolioPosition() { }
 
-    public PortfolioPosition(int assetId, byte assetClass, String symbol,
+    public PortfolioPosition(int assetId, AssetClassEnum assetClass, String symbol,
                              double currentValue, int quantity, double weight)
     {
         this.assetId = assetId;
@@ -24,8 +26,8 @@ public class PortfolioPosition {
     public int getAssetId() { return assetId; }
     public void setAssetId(int value) { assetId = value; }
 
-    public byte getAssetClass() { return assetClass; }
-    public void setAssetClass(byte value) { assetClass = value; }
+    public AssetClassEnum getAssetClass() { return assetClass; }
+    public void setAssetClass(AssetClassEnum value) { assetClass = value; }
 
     public String getSymbol() { return symbol; }
     public void setSymbol(String value) { symbol = value; }

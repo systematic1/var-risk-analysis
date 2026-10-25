@@ -1,15 +1,19 @@
 package com.kelly.varengine;
 
+import com.kelly.varengine.enums.AssetClassEnum;
+import com.kelly.varengine.models.PortfolioPosition;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.beans.factory.annotation.*;
 import com.kelly.varengine.services.*;
+import java.util.*;
 
 @SpringBootApplication
 public class VarEngineApplication {
 
     private MatrixServices matrixServices;
     private VarServices varServices;
+    private DataLoaderService dataLoaderService;
 
     public static void main(String[] args) {
         SpringApplication.run(VarEngineApplication.class, args);
@@ -24,13 +28,25 @@ public class VarEngineApplication {
     @Value("${app.monteCarlo.trialCount}")
     public int monteCarloTrialCount;
 
-    public VarEngineApplication(MatrixServices matrixServices, VarServices varServices) {
+    public VarEngineApplication(MatrixServices matrixServices, VarServices varServices,
+                                DataLoaderService dataLoaderService) {
         this.matrixServices = matrixServices;
         this.varServices = varServices;
+        this.dataLoaderService = dataLoaderService;
     }
 
-    public void Run() {
+    public void RunTestPositions() {
         // Creates several positions & weights
+        List<PortfolioPosition> positions = new ArrayList<PortfolioPosition>();
+
+        positions.add(new PortfolioPosition(111111, AssetClassEnum.Equity, "AAPL", 2581000d, 1000, 0.25));
+        positions.add(new PortfolioPosition(222222, AssetClassEnum.Derivative, "MSFT", 352800d, 20, 0.50));
+        positions.add(new PortfolioPosition(333333, AssetClassEnum.FixedIncomeBond, "USB21", 5285300d, 500, 0.25));
+
+        Run(positions);
+    }
+
+    public void Run(List<PortfolioPosition> positions) {
         // Loads historical backtest data via Massive or Alpaca
         // Transforms historical data into matrix
         // Computes the logarithmic returns matrix

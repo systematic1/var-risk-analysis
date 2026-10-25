@@ -1,15 +1,17 @@
 package com.kelly.varengine.providers;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.core.*;
 import com.kelly.varengine.models.OHLCVSeries;
 import org.springframework.beans.factory.annotation.*;
-import org.springframework.boot.autoconfigure.web.format.DateTimeFormatters;
-import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.web.server.ResponseStatusException;
+import tools.jackson.databind.ObjectMapper;
 
+import java.io.IOException;
 import java.net.*;
 import java.net.http.*;
-import java.time.LocalDate;
+import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
@@ -38,7 +40,9 @@ public class MassiveMarketDataSource {
     public HashMap<LocalDate, OHLCVSeries> getDailyQuotes(String symbol,
                                                           LocalDate fromDate,
                                                           LocalDate toDateInclusive)
-            throws IllegalArgumentException, SecurityException, Exception {
+            throws IllegalArgumentException, SecurityException, ResponseStatusException,
+                URISyntaxException, IOException, InterruptedException
+    {
 
         HttpClient http = HttpClient.newHttpClient();
         if (apiKey.isBlank())
@@ -67,19 +71,72 @@ public class MassiveMarketDataSource {
 
             String body = response.body();
             if (response.statusCode() != 200)
-                throw new Exception(String.format("Massive API call failed with code", response.statusCode()));
+                throw new ResponseStatusException(HttpStatusCode.valueOf(response.statusCode()));
 
-            url = parsePage(body, symbol, quotes);
+            url = parseData(body, symbol, quotes);
         }
 
         return quotes;
     }
 
-    private String parsePage(String json, String symbol, HashMap<LocalDate, OHLCVSeries> into) {
+    private String parseData(String json, String symbol, HashMap<LocalDate, OHLCVSeries> seriesData)
+        throws IllegalStateException
+    {
         // Convert the json string into a MsvResult record instance
-        // Iterate over the MsvResult.results list and add each item to the "into" HashMap
-        // Return MsvResult.next_url, or null if next_url is empty
-        return null;
+        String newUrl = null;
+        ObjectMapper mapper = new ObjectMapper();
+
+        try {
+            MsvResult parsedResult = mapper.readValue(json, MsvResult.class);
+
+            if (parsedResult == null)
+                throw new IllegalStateException("Response was empty or null");
+            else if (!parsedResult.status().equalsIgnoreCase("OK"))
+                throw new IllegalStateException(String.format("Response status returned '%s'", parsedResult.status()));
+            else {
+                for (MsvBar bar : parsedResult.results()) {
+                    if (bar.h < bar.l)
+                        continue;
+
+                    LocalDateTime barDateUtc = LocalDateTime.ofEpochSecond(bar.t(), 0, ZoneOffset.UTC);
+                    ZoneId zoneId = ZoneId.of("America/New_York");
+                    ZonedDateTime barDateEst = barDateUtc.atZone(ZoneOffset.UTC).withZoneSameInstant(zoneId);
+
+                    OHLCVSeries series = new OHLCVSeries(bar.o(), bar.h(), bar.l(), bar.c(), bar.c(), bar.v());
+                    seriesData.put(barDateEst.toLocalDate(), series);
+                }
+
+                newUrl = parsedResult.next_url();
+            }
+        }
+        catch (tools.jackson.core.JacksonException jex) {
+            throw new IllegalStateException("Json response could not be parsed into expected form.");
+        }
+
+        return newUrl;
+    }
+
+    private String withApiKey(String url) {
+        return url + (url.contains("?") ? "&" : "?") + "apiKey=" +
+                java.net.URLEncoder.encode(apiKey);
+    }
+
+    private String mapTicker(String ticker)
+    {
+        String t = ticker.trim().toUpperCase(Locale.ROOT);
+        return convertDashToDot ? t.replace('-', '.') : t;
+    }
+
+    private Optional<Double> getNum(String str) {
+        if (str == null || str.isBlank()) {
+            return Optional.empty();
+        }
+
+        try {
+            return Optional.of(Double.parseDouble(str.trim()));
+        } catch (NumberFormatException e) {
+            return Optional.empty();
+        }
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -88,8 +145,9 @@ public class MassiveMarketDataSource {
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record MsvResult(boolean adjusted, String next_url, int queryCount, String request_id,
                              List<MsvBar> results, int resultsCount, String status, String ticker) { }
-    /*
-    {
+
+/*
+{
   "adjusted": true,
   "next_url": "https://api.massive.com/v2/aggs/ticker/AAPL/range/1/day/1578114000000/2020-01-10?cursor=bGltaXQ9MiZzb3J0PWFzYw",
   "queryCount": 2,
@@ -120,77 +178,5 @@ public class MassiveMarketDataSource {
   "status": "OK",
   "ticker": "AAPL"
 }
-        ---- C# version to convert ----
-
-    internal static string? ParsePage(string json, string ticker, Dictionary<DateOnly, DailyQuote> into)
-    {
-        using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-
-        if (root.TryGetProperty("status", out var status) && status.ValueKind == JsonValueKind.String &&
-            string.Equals(status.GetString(), "ERROR", StringComparison.OrdinalIgnoreCase))
-        {
-            string msg = root.TryGetProperty("error", out var e) ? e.ToString()
-                       : (root.TryGetProperty("message", out var m) ? m.ToString() : "unknown error");
-            throw new InvalidOperationException($"Massive error for {ticker}: {msg}");
-        }
-
-        if (root.TryGetProperty("results", out var results) && results.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var r in results.EnumerateArray())
-            {
-                if (!Num(r, "o", out var o) || !Num(r, "h", out var h) || !Num(r, "l", out var l) ||
-                    !Num(r, "c", out var c) || !Num(r, "t", out var t))
-                    continue;
-
-                Num(r, "v", out var v);
-                if (h < l)
-                    continue;
-
-                // Daily bars are stamped at the start of the trading day in US Eastern time.
-                var utc = DateTimeOffset.FromUnixTimeMilliseconds((long)t).UtcDateTime;
-                var date = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(utc, EasternTime));
-
-                into[date] = new DailyQuote
-                {
-                    TradeDate = date,
-                    OpenPrice = (decimal)o,
-                    HighPrice = (decimal)h,
-                    LowPrice = (decimal)l,
-                    ClosePrice = (decimal)c,
-                    AdjClosePrice = null,                 // Massive bars carry no dividend-adjusted close
-                    Volume = (long)Math.Round(v)
-                };
-            }
-        }
-
-        return root.TryGetProperty("next_url", out var next) && next.ValueKind == JsonValueKind.String
-            ? next.GetString()
-            : null;
-    */
-
-    private String withApiKey(String url) {
-        return url + (url.contains("?") ? "&" : "?") + "apiKey=" +
-                java.net.URLEncoder.encode(apiKey);
-    }
-
-    private String mapTicker(String ticker)
-    {
-        String t = ticker.trim().toUpperCase(Locale.ROOT);
-        return convertDashToDot ? t.replace('-', '.') : t;
-    }
-
-    private Optional<Double> getNum(String str) {
-        if (str == null || str.isBlank()) {
-            return Optional.empty();
-        }
-
-        try {
-            return Optional.of(Double.parseDouble(str.trim()));
-        } catch (NumberFormatException e) {
-            return Optional.empty();
-        }
-    }
-
-
+*/
 }
