@@ -1,12 +1,13 @@
 package com.kelly.varengine.services;
 
+import com.kelly.varengine.models.OHLCVSeries;
 import com.kelly.varengine.models.PortfolioPosition;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
 
 @Service
@@ -14,37 +15,40 @@ public class MatrixServices {
 
     //private static final Logger log = LoggerFactory.getLogger(MatrixServices.class);
 
-    // R<t> = ln (P<t>/P<t-1>)
-    public INDArray createLogarithmicReturns(INDArray prices)
-    {
-        double rtnValue, prevValue = 1.0;
-        var logReturns = Nd4j.zeros(prices.rows(), prices.columns());
+    public INDArray createLogarithmicReturns(HashMap<PortfolioPosition, HashMap<LocalDate, OHLCVSeries>> positionData, int points) {
+        double[] prevValue = {1.0};  //Java hack - tracking variables used inside & outside a lambda
+        int[] positionIndex = {0};
+        int[] seriesIndex = {0};
+
+        INDArray logReturns = Nd4j.zeros(positionData.size(), points - 1);
 
         // TO DO: Use Vectorization instead of loops
-        for (int row = 0; row < prices.rows(); row++)
-        {
-            for (int col = 0; col < prices.columns(); col++)
-            {
-                rtnValue = Math.log(prices.getDouble(row, col) / prevValue);
-                logReturns.put(row, col, rtnValue);
-                prevValue = rtnValue;
-            }
-        }
+        positionData.forEach((position, stockBars) -> {
+            seriesIndex[0] = 0;
+            stockBars.forEach((date, series) -> {
+                // R<t> = ln(Price<t> / Price<t-1>)
+                double rtnValue = Math.log(series.getAdjClosePrice() / prevValue[0]);
+                logReturns.put(positionIndex[0], seriesIndex[0], rtnValue);
+                prevValue[0] = rtnValue;
+                seriesIndex[0]++;
+            });
+
+            positionIndex[0]++;
+        });
 
         return logReturns;
     }
 
     // W<i> = (Quantity<i>  X Price<i>) / (Total Portfolio Value)
-    public INDArray createDynamicWeights(List<PortfolioPosition> positions, double totalValue)
-    {
+    public INDArray createDynamicWeights(List<PortfolioPosition> positions) {
+        double totalValue = getPortfolioTotalValue(positions);
+
         var dynWeights = Nd4j.zeros(positions.size(), 1);
         int qty;
         double wValue, price;
 
-        if (totalValue != 0.0)
-        {
-            for (int index = 0; index < positions.size(); index++)
-            {
+        if (totalValue != 0.0) {
+            for (int index = 0; index < positions.size(); index++) {
                 qty = positions.get(index).getQuantity();
                 price = positions.get(index).getCurrentValue();
                 wValue = (qty * price) / totalValue;
@@ -56,4 +60,11 @@ public class MatrixServices {
         return dynWeights;
     }
 
+    public double getPortfolioTotalValue(List<PortfolioPosition> positions) {
+        double totalValue = 0.0;
+        for (PortfolioPosition position : positions)
+            totalValue += position.getCurrentValue();
+
+        return totalValue;
+    }
 }

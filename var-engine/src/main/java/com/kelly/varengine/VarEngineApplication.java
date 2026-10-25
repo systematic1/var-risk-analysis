@@ -1,19 +1,24 @@
 package com.kelly.varengine;
 
 import com.kelly.varengine.enums.AssetClassEnum;
+import com.kelly.varengine.models.OHLCVSeries;
 import com.kelly.varengine.models.PortfolioPosition;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.beans.factory.annotation.*;
 import com.kelly.varengine.services.*;
+
+import java.io.IOException;
+import java.net.URISyntaxException;
+import java.time.LocalDate;
 import java.util.*;
 
 @SpringBootApplication
 public class VarEngineApplication {
 
-    private MatrixServices matrixServices;
-    private VarServices varServices;
-    private DataLoaderService dataLoaderService;
+    private final MatrixServices matrixServices;
+    private final VarServices varServices;
+    private final DataLoaderService dataLoaderService;
 
     public static void main(String[] args) {
         SpringApplication.run(VarEngineApplication.class, args);
@@ -28,6 +33,9 @@ public class VarEngineApplication {
     @Value("${app.monteCarlo.trialCount}")
     public int monteCarloTrialCount;
 
+    @Value("${app.history.lookBackDays}")
+    public int historyLookBackDays;
+
     public VarEngineApplication(MatrixServices matrixServices, VarServices varServices,
                                 DataLoaderService dataLoaderService) {
         this.matrixServices = matrixServices;
@@ -37,23 +45,65 @@ public class VarEngineApplication {
 
     public void RunTestPositions() {
         // Creates several positions & weights
-        List<PortfolioPosition> positions = new ArrayList<PortfolioPosition>();
+        try {
+            List<PortfolioPosition> positions = new ArrayList<>();
 
-        positions.add(new PortfolioPosition(111111, AssetClassEnum.Equity, "AAPL", 2581000d, 1000, 0.25));
-        positions.add(new PortfolioPosition(222222, AssetClassEnum.Derivative, "MSFT", 352800d, 20, 0.50));
-        positions.add(new PortfolioPosition(333333, AssetClassEnum.FixedIncomeBond, "USB21", 5285300d, 500, 0.25));
+            positions.add(new PortfolioPosition(111111, AssetClassEnum.Equity, "AAPL", 2581000d, 1000, 0.25));
+            positions.add(new PortfolioPosition(222222, AssetClassEnum.Derivative, "MSFT", 352800d, 20, 0.50));
+            positions.add(new PortfolioPosition(333333, AssetClassEnum.FixedIncomeBond, "USB21", 5285300d, 500, 0.25));
 
-        Run(positions);
+            Run(positions);
+        }
+        catch (Exception ex) {
+            System.out.println();
+            System.out.printf("!! Exception occurred:  %s%n", ex.getMessage());
+        }
     }
 
-    public void Run(List<PortfolioPosition> positions) {
-        // Loads historical backtest data via Massive or Alpaca
-        // Transforms historical data into matrix
-        // Computes the logarithmic returns matrix
-        // Computes the dynamic weight of the log returns
+    public void Run(List<PortfolioPosition> positions)
+        throws URISyntaxException, IOException, InterruptedException
+    {
+        int points = 0;
+        HashMap<PortfolioPosition, HashMap<LocalDate, OHLCVSeries>> portfolioHistoryData = new HashMap<>();
+
+        // Loads historical backtest data via Massive
+        for (var positionItem : positions) {
+            LocalDate startDate = LocalDate.now().minusDays(historyLookBackDays);
+            HashMap<LocalDate, OHLCVSeries> historicalQuotes =
+                dataLoaderService.getHistoricalQuotes(positionItem.getSymbol(), startDate, LocalDate.now());
+
+            portfolioHistoryData.put(positionItem, historicalQuotes);
+            points = Math.max(points, historicalQuotes.size());
+        }
+
         // Fills in gaps
+            // When not all positions have enough history data to satisfy the look-back time frame:
+            /*
+                You start with the longest available data and get the covariance matrix of that.
+                For the next set of available data, you regress them against the data that is available
+                longer and use the regression coefficients to expand the covariance matrix (and means).
+                You then iterate through each unique group of data, steadily shrinking the amount of data
+                used in each regression.
+            */
+
+            // When there are a few dates missing from one asset data history stream - interpolate missing data points
+
+        // Computes the logarithmic returns matrix
+        var logReturnsMatrix = matrixServices.createLogarithmicReturns(portfolioHistoryData, points);
+
+        // Computes the dynamic weight of the log returns
+        var dynWeightReturnsMatrix = matrixServices.createDynamicWeights(positions);
+
         // Creates covariance matrix
+        var covariantMatrix = varServices.createCovariantMatrix(logReturnsMatrix);
+
         // Creates a Z-Score and VaR amount based on 2 confidence levels
+        var zScoreConfidence1 = 0;
+        var zScoreConfidence2 = 0;
+
+        var varConfidence1 = 0.0;
+        var varConfidence2 = 0.0;
+
         // Creates Cholesky Decomposition matrix and uses the L matrix value
         // Runs the configured number of random trials
 
