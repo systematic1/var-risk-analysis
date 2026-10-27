@@ -1,6 +1,6 @@
 package com.kelly.varengine.models;
 
-public class OHLCVSeries {
+public class OHLCVBar {
     private double openPrice;
     private double highPrice;
     private double lowPrice;
@@ -8,10 +8,10 @@ public class OHLCVSeries {
     private double adjClosePrice;
     private int volume;
 
-    public OHLCVSeries() { }
+    public OHLCVBar() { }
 
-    public OHLCVSeries(double openPrice, double highPrice, double lowPrice,
-                       double closePrice, double adjClosePrice, int volume)
+    public OHLCVBar(double openPrice, double highPrice, double lowPrice,
+                    double closePrice, double adjClosePrice, int volume)
     {
         this.openPrice = openPrice;
         this.highPrice = highPrice;

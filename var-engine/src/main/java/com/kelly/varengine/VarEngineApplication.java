@@ -1,7 +1,7 @@
 package com.kelly.varengine;
 
 import com.kelly.varengine.enums.AssetClassEnum;
-import com.kelly.varengine.models.OHLCVSeries;
+import com.kelly.varengine.models.OHLCVBar;
 import com.kelly.varengine.models.PortfolioPosition;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -64,16 +64,20 @@ public class VarEngineApplication {
         throws URISyntaxException, IOException, InterruptedException
     {
         int points = 0;
-        HashMap<PortfolioPosition, HashMap<LocalDate, OHLCVSeries>> portfolioHistoryData = new HashMap<>();
+        HashMap<PortfolioPosition, HashMap<LocalDate, OHLCVBar>> portfolioHistoryData = new HashMap<>();
 
         // Loads historical backtest data via Massive
         for (var positionItem : positions) {
             LocalDate startDate = LocalDate.now().minusDays(historyLookBackDays);
-            HashMap<LocalDate, OHLCVSeries> historicalQuotes =
+            HashMap<LocalDate, OHLCVBar> historicalQuotes =
                 dataLoaderService.getHistoricalQuotes(positionItem.getSymbol(), startDate, LocalDate.now());
 
             portfolioHistoryData.put(positionItem, historicalQuotes);
             points = Math.max(points, historicalQuotes.size());
+
+            dataLoaderService.waitDelayTime()
+                    .thenAccept(result -> {})
+                    .exceptionally(exception -> null);
         }
 
         // Fills in gaps

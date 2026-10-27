@@ -1,6 +1,6 @@
 package com.kelly.varengine.services;
 
-import com.kelly.varengine.models.OHLCVSeries;
+import com.kelly.varengine.models.OHLCVBar;
 import com.kelly.varengine.models.PortfolioPosition;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
@@ -15,7 +15,7 @@ public class MatrixServices {
 
     //private static final Logger log = LoggerFactory.getLogger(MatrixServices.class);
 
-    public INDArray createLogarithmicReturns(HashMap<PortfolioPosition, HashMap<LocalDate, OHLCVSeries>> positionData, int points) {
+    public INDArray createLogarithmicReturns(HashMap<PortfolioPosition, HashMap<LocalDate, OHLCVBar>> positionData, int points) {
         double[] prevValue = {1.0};  //Java hack - tracking variables used inside & outside a lambda
         int[] positionIndex = {0};
         int[] seriesIndex = {0};
