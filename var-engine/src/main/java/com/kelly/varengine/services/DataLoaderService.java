@@ -7,6 +7,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -40,7 +41,25 @@ public class DataLoaderService {
         return CompletableFuture.completedFuture(null);
     }
 
-    public int interpolateMissingData(HashMap<LocalDate, OHLCVBar> quoteData) {
+    public int interpolateMissingData(HashMap<LocalDate, OHLCVBar> quoteData, LocalDate earliestDate) {
+        LocalDate date = earliestDate;
+        LocalDate now = LocalDate.now();
+        OHLCVBar prevValidData, nextValidData;
+        List<LocalDate> missingDates = new ArrayList<>();
+
+        while (date.isBefore(now)) {
+            if (!quoteData.containsKey(date)) {
+                missingDates.add(date);
+            }
+
+            date = date.plusDays(1);
+        }
+
         return 0;
+    }
+
+    private boolean isWeekday(LocalDate date) {
+        var weekday = date.getDayOfWeek();
+        return (weekday != DayOfWeek.SATURDAY && weekday != DayOfWeek.SUNDAY);
     }
 }
