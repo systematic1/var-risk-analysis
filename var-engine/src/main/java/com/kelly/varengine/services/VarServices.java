@@ -1,6 +1,9 @@
 package com.kelly.varengine.services;
 
+import java.util.List;
 import java.util.Random;
+
+import com.kelly.varengine.models.PortfolioPosition;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
 import org.nd4j.linalg.dimensionalityreduction.PCA;
@@ -16,10 +19,25 @@ public class VarServices {
                 Nd4j.empty();
     }
 
-    public double calculateVariantSigma(INDArray covariantMatrix) {
-        return covariantMatrix.isEmpty() ?
-                Double.NaN :
-                covariantMatrix.varNumber().doubleValue();
+    public double calculateVariantSigma(INDArray covariantMatrix, List<PortfolioPosition> positions) {
+        // Create a matrix from position values
+        double[][] positionData = new double[positions.size()][1];  // N x 1
+        for (int index = 0; index < positions.size(); index++)
+            positionData[index][0] = positions.get(index).getCurrentValue();
+
+        // Multiple covariant matrix values by position vertical vector
+        INDArray valueMatrix = Nd4j.create(positionData);
+        INDArray intermediateMatrix = covariantMatrix.mul(valueMatrix);
+
+        // Transpose the resulting matrix (intermediate) and then multiply by positions matrix
+        INDArray intermediateTransposed = intermediateMatrix.transpose();
+        INDArray sigmaSquaredMatrix = valueMatrix.mul(intermediateTransposed);
+
+        // Summate all the values in the resulting matrix, which is sigma^2
+        double sigmaSquared = sigmaSquaredMatrix.sumNumber().doubleValue();
+
+        // Value-at-Risk is the square root of sigma^2
+        return Math.sqrt(sigmaSquared);
     }
 
     public double calculateValueAtRisk(double confidence, double variance, double portfolioValue) {
@@ -28,9 +46,8 @@ public class VarServices {
         NormalDistribution normalDist = new NormalDistribution();
         double cumulativeArea = (1.0 + confidence) / 2.0;
         double zScore = normalDist.inverseCumulativeProbability(confidence);
-        double sigma = Math.sqrt(variance);
 
-        return portfolioValue * sigma * zScore;
+        return portfolioValue * variance * zScore;
     }
 
     public SimpleMatrix performCholeskyDecomposition(INDArray matrix) {

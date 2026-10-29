@@ -81,16 +81,10 @@ public class VarEngineApplication {
         }
 
         // Fills in gaps
-            // When not all positions have enough history data to satisfy the look-back time frame:
-            /*
-                You start with the longest available data and get the covariance matrix of that.
-                For the next set of available data, you regress them against the data that is available
-                longer and use the regression coefficients to expand the covariance matrix (and means).
-                You then iterate through each unique group of data, steadily shrinking the amount of data
-                used in each regression.
-            */
 
-            // When there are a few dates missing from one asset data history stream - interpolate missing data points
+        var portfolioValue = positions.stream()
+                .mapToDouble(PortfolioPosition::getCurrentValue)
+                .sum();
 
         // Computes the logarithmic returns matrix
         var logReturnsMatrix = matrixServices.createLogarithmicReturns(portfolioHistoryData, points);
@@ -101,15 +95,22 @@ public class VarEngineApplication {
         // Creates covariance matrix
         var covariantMatrix = varServices.createCovariantMatrix(logReturnsMatrix);
 
-        // Creates a Z-Score and VaR amount based on 2 confidence levels
-        var zScoreConfidence1 = 0;
-        var zScoreConfidence2 = 0;
+        // Compute the variance standard deviation (sigma)
+        var variance = varServices.calculateVariantSigma(covariantMatrix, positions);
 
-        var varConfidence1 = 0.0;
-        var varConfidence2 = 0.0;
+        // Creates a Z-Score and VaR amount based on 2 confidence levels
+        var varConfidence1 = varServices.calculateValueAtRisk(confidenceLevel1, variance, portfolioValue);
+        var varConfidence2 = varServices.calculateValueAtRisk(confidenceLevel1, variance, portfolioValue);
 
         // Creates Cholesky Decomposition matrix and uses the L matrix value
-        // Runs the configured number of random trials
+        var choleskyLMatrix = varServices.performCholeskyDecomposition(covariantMatrix);
+
+        // Runs the configured number of random trials (Monte Carlo)
+        //  - Need the means of each asset value (matrix/array)
+        //  - Loop through required number of trial loops creating a random number matrix same shape as cholesky L
+        //  - Multiply the random matrix by the cholesky L matrix for each loop
+        //  - Calculate the correlated data by adding the mean of each asset value to the resulting matrix single value sum
+        //  - Store the correlated data for each trial ran
 
         // Produces the following output:
         //  Downside loss limit
