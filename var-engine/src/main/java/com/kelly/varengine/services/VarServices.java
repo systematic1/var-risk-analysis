@@ -9,6 +9,9 @@ import org.nd4j.linalg.factory.Nd4j;
 import org.nd4j.linalg.dimensionalityreduction.PCA;
 import org.apache.commons.math3.distribution.NormalDistribution;
 import org.ejml.simple.SimpleMatrix;
+import org.ejml.dense.row.factory.DecompositionFactory_DDRM;
+import org.ejml.interfaces.decomposition.CholeskyDecomposition_F64;
+import org.ejml.data.DMatrixRMaj;
 
 public class VarServices {
 
@@ -19,7 +22,7 @@ public class VarServices {
                 Nd4j.empty();
     }
 
-    public double calculateVariantSigma(INDArray covariantMatrix, List<PortfolioPosition> positions) {
+    public double calculateVarianceSigma(INDArray covariantMatrix, List<PortfolioPosition> positions) {
         // Create a matrix from position values
         double[][] positionData = new double[positions.size()][1];  // N x 1
         for (int index = 0; index < positions.size(); index++)
@@ -36,41 +39,49 @@ public class VarServices {
         // Summate all the values in the resulting matrix, which is sigma^2
         double sigmaSquared = sigmaSquaredMatrix.sumNumber().doubleValue();
 
-        // Value-at-Risk is the square root of sigma^2
+        // Variance is the square root of sigma^2
         return Math.sqrt(sigmaSquared);
     }
 
     public double calculateValueAtRisk(double confidence, double variance, double portfolioValue) {
-        //Apache.Common: NormalDistribution
-        //NormalDistribution.inverseCumulativeProbability
         NormalDistribution normalDist = new NormalDistribution();
-        double cumulativeArea = (1.0 + confidence) / 2.0;
+        //double cumulativeArea = (1.0 + confidence) / 2.0;
         double zScore = normalDist.inverseCumulativeProbability(confidence);
 
         return portfolioValue * variance * zScore;
     }
 
-    public SimpleMatrix performCholeskyDecomposition(INDArray matrix) {
-        //EJML: SimpleMatrix [square matrix, N x N]
-        // SimpleMatrix.cholesky()
-        // SimpleMatrix.getL()
-        return SimpleMatrix.ones(1, 1);
+    public SimpleMatrix performCholeskyDecomposition(INDArray covariantMatrix) {
+        // Convert ND4J INDArray to EJML SimpleMatrix [square matrix, N x N]
+        double[][] array2d = covariantMatrix.toDoubleMatrix();
+        SimpleMatrix covarianceSimpleMatrix = new SimpleMatrix(array2d);
+
+        // Calculate the Cholesky Decomposition Lower Triangular Matrix (L)
+        CholeskyDecomposition_F64<DMatrixRMaj> cholesky =
+                DecompositionFactory_DDRM.chol(covarianceSimpleMatrix.getNumRows(), true);
+
+        if (!cholesky.decompose(covarianceSimpleMatrix.getMatrix()))
+            throw new RuntimeException("Cholesky Decomposition failed. Matrix must be symmetric positive-definite.");
+
+        // Return the "L" matrix
+        return SimpleMatrix.wrap(cholesky.getT(null));
     }
 
-    public void performMonteCarloRandomTrials(INDArray covariants, int numTrials) {
+    public double performMonteCarloRandomTrial(SimpleMatrix choleskyL) {
+        // Create a random noise matrix the same size as the cholesky L matrix
         Random rand = new Random();
-        SimpleMatrix choleskyL = performCholeskyDecomposition(covariants);
+        SimpleMatrix randomMatrix = new SimpleMatrix(choleskyL.getNumRows(), choleskyL.getNumCols());
 
-        for (int i = 0; i < numTrials; i++) {
-            double[][] noiseArray = new double[][]  // Must be of same dimensions as covariants
-            {
-                {rand.nextGaussian() /*, rand.nextGaussian(), ... */}
-            };
-
-            SimpleMatrix noisyLMatrix = choleskyL.mult(new SimpleMatrix(noiseArray));
-
-            //System.out.printf("Trial %d -> Asset 1 Return Shift: %.4f, Asset 2 Return Shift: %.4f%n",
-            //                i + 1, correlatedNoise.get(0, 0), correlatedNoise.get(1, 0))
+        for (int row = 0; row < randomMatrix.getNumRows(); row++) {
+            for (int col = 0; col < randomMatrix.getNumCols(); col++) {
+                randomMatrix.set(row, col, rand.nextGaussian());
+            }
         }
+
+        // Multiply the L matrix and the random noise matrix
+        SimpleMatrix multMatrix = choleskyL.mult(new SimpleMatrix(randomMatrix));
+
+        // Return the sum of all the cross matrix values
+        return multMatrix.elementSum();
     }
 }

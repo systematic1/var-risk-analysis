@@ -36,6 +36,9 @@ public class VarEngineApplication {
     @Value("${app.history.lookBackDays}")
     public int historyLookBackDays;
 
+    @Value("${app.smoothing.lambda}")
+    public double lambda;
+
     public VarEngineApplication(MatrixServices matrixServices, VarServices varServices,
                                 DataLoaderService dataLoaderService) {
         this.matrixServices = matrixServices;
@@ -89,14 +92,14 @@ public class VarEngineApplication {
         // Computes the logarithmic returns matrix
         var logReturnsMatrix = matrixServices.createLogarithmicReturns(portfolioHistoryData, points);
 
-        // Computes the dynamic weight of the log returns
-        var dynWeightReturnsMatrix = matrixServices.createDynamicWeights(positions);
+        // Computes the dynamic weight of the log returns given a smoothing lambda
+        var dynWeightReturnsMatrix = matrixServices.computeDynamicWeights(logReturnsMatrix, lambda); //positions
 
         // Creates covariance matrix
-        var covariantMatrix = varServices.createCovariantMatrix(logReturnsMatrix);
+        var covariantMatrix = varServices.createCovariantMatrix(dynWeightReturnsMatrix);
 
         // Compute the variance standard deviation (sigma)
-        var variance = varServices.calculateVariantSigma(covariantMatrix, positions);
+        var variance = varServices.calculateVarianceSigma(covariantMatrix, positions);
 
         // Creates a Z-Score and VaR amount based on 2 confidence levels
         var varConfidence1 = varServices.calculateValueAtRisk(confidenceLevel1, variance, portfolioValue);
@@ -104,6 +107,14 @@ public class VarEngineApplication {
 
         // Creates Cholesky Decomposition matrix and uses the L matrix value
         var choleskyLMatrix = varServices.performCholeskyDecomposition(covariantMatrix);
+
+        // TO DO Calculate mean values of each asset value
+
+        var correlatedTrialResults = new double[monteCarloTrialCount];
+        for (int trialCount = 0; trialCount < monteCarloTrialCount; trialCount++) {
+            double correlation = varServices.performMonteCarloRandomTrial(choleskyLMatrix);
+            correlatedTrialResults[trialCount] = correlation; // + mean
+        }
 
         // Runs the configured number of random trials (Monte Carlo)
         //  - Need the means of each asset value (matrix/array)
