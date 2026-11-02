@@ -21,7 +21,7 @@ public class MatrixServices {
         int[] positionIndex = {0};
         int[] seriesIndex = {0};
 
-        INDArray logReturns = Nd4j.zeros(positionData.size(), points - 1);
+        INDArray logReturns = Nd4j.zeros(points - 1, positionData.size());
 
         // TO DO: Use Vectorization instead of loops
         positionData.forEach((position, stockBars) -> {
@@ -29,8 +29,8 @@ public class MatrixServices {
             stockBars.forEach((date, series) -> {
                 // R<t> = ln(Price<t> / Price<t-1>)
                 double rtnValue = Math.log(series.getAdjClosePrice() / prevValue[0]);
-                logReturns.put(positionIndex[0], seriesIndex[0], rtnValue);
-                prevValue[0] = rtnValue;
+                logReturns.put(seriesIndex[0], positionIndex[0], rtnValue);
+                prevValue[0] = series.getAdjClosePrice();
                 seriesIndex[0]++;
             });
 

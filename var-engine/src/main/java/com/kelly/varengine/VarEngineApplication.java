@@ -78,13 +78,15 @@ public class VarEngineApplication {
             portfolioHistoryData.put(positionItem, historicalQuotes);
             points = Math.max(points, historicalQuotes.size());
 
+            // Fills in gaps
+            int correctedCount = dataLoaderService.interpolateMissingData(historicalQuotes, startDate);
+
             dataLoaderService.waitDelayTime()
                     .thenAccept(result -> {})
                     .exceptionally(exception -> null);
         }
 
-        // Fills in gaps
-
+        // Calculate the sum of the portfolio positions
         var portfolioValue = positions.stream()
                 .mapToDouble(PortfolioPosition::getCurrentValue)
                 .sum();
@@ -101,43 +103,82 @@ public class VarEngineApplication {
         // Compute the variance standard deviation (sigma)
         var variance = varServices.calculateVarianceSigma(covariantMatrix, positions);
 
-        // Creates a Z-Score and VaR amount based on 2 confidence levels
+        // Creates VaR amount based on 2 confidence levels and computed Z-Score normal distributions
         var varConfidence1 = varServices.calculateValueAtRisk(confidenceLevel1, variance, portfolioValue);
-        var varConfidence2 = varServices.calculateValueAtRisk(confidenceLevel1, variance, portfolioValue);
+        var varConfidence2 = varServices.calculateValueAtRisk(confidenceLevel2, variance, portfolioValue);
 
+        // Monte Carlo Simulation setup
         // Creates Cholesky Decomposition matrix and uses the L matrix value
         var choleskyLMatrix = varServices.performCholeskyDecomposition(covariantMatrix);
 
-        // TO DO Calculate mean values of each asset value
+        // Calculate the mean values of each asset's historical value
+        HashMap<String, Double> assetMeanValues = new HashMap<>();
+        HashMap<String, Double> assetStdDevValues = new HashMap<>();
 
-        var correlatedTrialResults = new double[monteCarloTrialCount];
-        for (int trialCount = 0; trialCount < monteCarloTrialCount; trialCount++) {
-            double correlation = varServices.performMonteCarloRandomTrial(choleskyLMatrix);
-            correlatedTrialResults[trialCount] = correlation; // + mean
-        }
+        portfolioHistoryData.forEach((position, histData) -> {
+            double[] total = { 0.0, 0.0 };
+            histData.forEach((localDate, bar) -> total[0] += bar.getAdjClosePrice());
+            if (!histData.isEmpty()) {
+                double mean = total[0] / histData.size();
+                assetMeanValues.put(position.getSymbol(), mean);
 
-        // Runs the configured number of random trials (Monte Carlo)
-        //  - Need the means of each asset value (matrix/array)
-        //  - Loop through required number of trial loops creating a random number matrix same shape as cholesky L
-        //  - Multiply the random matrix by the cholesky L matrix for each loop
-        //  - Calculate the correlated data by adding the mean of each asset value to the resulting matrix single value sum
-        //  - Store the correlated data for each trial ran
+                histData.forEach((localDate, bar) -> total[1] += Math.pow(bar.getAdjClosePrice() - mean, 2.0));
+                double stdDev = Math.sqrt(total[1] / histData.size());
+                assetStdDevValues.put(position.getSymbol(), stdDev);
+            }
+        });
+
+        // #Run parallel Monte Carlo trials
+        double[] assetWeights = positions.stream().mapToDouble(p -> p.getCurrentValue() / portfolioValue).toArray();
+        double[] assetMeans = positions.stream().mapToDouble(p -> assetMeanValues.get(p.getSymbol())).toArray();
+        double[] assetStdDevs = positions.stream().mapToDouble(p -> assetStdDevValues.get(p.getSymbol())).toArray();
+
+        double[] trialPortfolioReturns = new double[monteCarloTrialCount];
+        java.util.stream.IntStream.range(0, monteCarloTrialCount).parallel().forEach(i -> {
+            trialPortfolioReturns[i] = varServices.performMonteCarloPortfolioTrial(choleskyLMatrix, assetWeights, assetMeans, assetStdDevs, 1);
+        });
+
+        // Sort trial outcomes for percentile extraction (ascending order of returns)
+        Arrays.sort(trialPortfolioReturns);
+
+        // Extract Key Percentiles (e.g., 10th, 5th, 1st percentiles)
+        int idx10 = (int) (monteCarloTrialCount * 0.10);
+        int idx5  = (int) (monteCarloTrialCount * 0.05);
+        int idx1  = (int) (monteCarloTrialCount * 0.01);
+        int idx01 = (int) (monteCarloTrialCount * 0.001);
+
+        double p90OutcomeValue = portfolioValue * (1.0 + trialPortfolioReturns[(int) (monteCarloTrialCount * 0.90)]);
+        double medianOutcomeValue = portfolioValue * (1.0 + trialPortfolioReturns[monteCarloTrialCount / 2]);
+        double p10OutcomeValue = portfolioValue * (1.0 + trialPortfolioReturns[idx10]);
+        double p5OutcomeValue  = portfolioValue * (1.0 + trialPortfolioReturns[idx5]);
+        double p1OutcomeValue  = portfolioValue * (1.0 + trialPortfolioReturns[idx1]);
+
+        // Compute Expected Shortfall (Conditional VaR) at 95% confidence (mean loss beyond 5th percentile)
+        double sumTailLosses = 0.0;
+        for (int i = 0; i < idx5; i++)
+            sumTailLosses += (portfolioValue * trialPortfolioReturns[i]);
+
+        double conditionalVaR95 = idx5 > 0 ? - (sumTailLosses / idx5) : 0.0;
+
+        // Success Probability (% of runs where portfolio did not incur a catastrophic loss > 50%)
+        long successfulRuns = Arrays.stream(trialPortfolioReturns).filter(r -> r > -0.50).count();
+        double probabilitySuccess = (double) successfulRuns / monteCarloTrialCount;
+        double shortfallRisk = 1.0 - probabilitySuccess;
 
         // Produces the following output:
         //  Downside loss limit
-        //      - Absolute VaR (maximum loss $)
-        //      - Percentage VaR (% of portfolio value)
-        //      - Time horizon (holding period in days)
-        //      - Confidence ("#-Day VaR at ##% Confidence")
+        //      - Absolute VaR (maximum loss $)               { varConfidence1, varConfidence2 }
+        //      - Percentage VaR (% of portfolio value)       { var * 100 / portfolioValue }
+
+        double pctVarConfidence1 = Math.round(varConfidence1 * 10000.0 / portfolioValue) * 100.0;
+        double pctVarConfidence2 = Math.round(varConfidence2 * 10000.0 / portfolioValue) * 100.0;
+
         //  Max loss projections at given confidence levels
         //      - VaR Distribution chart (bell curve) per confidence level
         //          - Safe zone: represents area of bell curve within expected normal losses (at 95% or 99% confidence)
         //          - Tail area: segment area (1% or 5%) representing chosen significance level
-        //  KPIs / Summary table result
-        //      Probablility of Success = %     (percentage of simulated runs where portfolio never hit zero)
-        //      Median Ending Value = $         (P50 outcome - half the runs ended higher, half ended lower)
-        //      Shortfall Risk = %              (inverse of success: 100% - Prob of Success)
-        //      Value at Risk = $               (Maximum expected loss at specific confidence interval over a given timeframe)
+
+        record AssetPositionRiskOutcomeVaR(String positionName, double weight, double var, double mVar, double cVar) { }
         //  Key Parametric Outcome tables  <example>
         //      ===> Headers:  Asset/Risk Component      Position Weight    Standalone VaR   Marginal VaR   Component VaR
         //                     US Equities (S&P 500)     50%                $165,000         $125,000       $62,500
@@ -145,6 +186,9 @@ public class VarEngineApplication {
         //                     Undiversified Total       100%               $210,000         $140,000       $68,500
         //                     Diversification Benefit   --                 -$130,000        --             --
         //                     Portfolio Parametric VaR  100%               $80,000          --             $80,000
+
+        record MCSimulationByConfidence(double confidenceLevel, String percentile, double portfolioValueOutcome,
+                                        double varMetric, double varMaxLossPct, double conditionalVarShortfall) { }
         //      ===> Headers:  Confidence Level      Simulated %       Portfolio Value       VaR Metric             Conditional VaR
         //                                           Percentile        Outcome               (Max Loss)             Expected Shortfall
         //                     90.0%                 10th percentile   $9,150,000            $850,000 (8.5%)        $1,420,000

@@ -34,7 +34,7 @@ public class VarServices {
 
         // Transpose the resulting matrix (intermediate) and then multiply by positions matrix
         INDArray intermediateTransposed = intermediateMatrix.transpose();
-        INDArray sigmaSquaredMatrix = valueMatrix.mul(intermediateTransposed);
+        INDArray sigmaSquaredMatrix = valueMatrix.mmul(intermediateTransposed);
 
         // Summate all the values in the resulting matrix, which is sigma^2
         double sigmaSquared = sigmaSquaredMatrix.sumNumber().doubleValue();
@@ -63,25 +63,80 @@ public class VarServices {
         if (!cholesky.decompose(covarianceSimpleMatrix.getMatrix()))
             throw new RuntimeException("Cholesky Decomposition failed. Matrix must be symmetric positive-definite.");
 
-        // Return the "L" matrix
+        // Return the "L" (lower triangular) matrix
         return SimpleMatrix.wrap(cholesky.getT(null));
     }
 
-    public double performMonteCarloRandomTrial(SimpleMatrix choleskyL) {
-        // Create a random noise matrix the same size as the cholesky L matrix
-        Random rand = new Random();
-        SimpleMatrix randomMatrix = new SimpleMatrix(choleskyL.getNumRows(), choleskyL.getNumCols());
+    public double[][] calculateRiskDecomposition(INDArray covariantMatrix, List<PortfolioPosition> positions, double portfolioValue, double zScore) {
+        int n = positions.size();
+        double[][] decomposition = new double[n][3]; // [Standalone VaR, Marginal VaR, Component VaR]
 
-        for (int row = 0; row < randomMatrix.getNumRows(); row++) {
-            for (int col = 0; col < randomMatrix.getNumCols(); col++) {
-                randomMatrix.set(row, col, rand.nextGaussian());
-            }
+        // Extract weights vector (w) and position values (v)
+        double[][] weightData = new double[n][1];
+        double[][] valueData = new double[n][1];
+        for (int i = 0; i < n; i++) {
+            valueData[i][0] = positions.get(i).getCurrentValue();
+            weightData[i][0] = valueData[i][0] / portfolioValue;
+        }
+        INDArray w = Nd4j.create(weightData);
+        INDArray Sigma = covariantMatrix;
+
+        // Portfolio variance and volatility (sigma_p)
+        double sigmaP = calculateVarianceSigma(covariantMatrix, positions);
+        if (sigmaP == 0.0) return decomposition;
+
+        // Marginal Risk Contribution (Vector): (Sigma * w) / sigma_p
+        INDArray sigmaW = Sigma.mmul(w);
+        INDArray marginalRisk = sigmaW.div(sigmaP);
+
+        // Total Portfolio VaR
+        double totalVaR = portfolioValue * sigmaP * zScore;
+
+        for (int i = 0; i < n; i++) {
+            double positionVal = positions.get(i).getCurrentValue();
+
+            // 1. Standalone VaR (VaR if asset was 100% of portfolio, using its diagonal variance)
+            double assetStdDev = Math.sqrt(Sigma.getDouble(i, i));
+            double standaloneVaR = positionVal * assetStdDev * zScore;
+            decomposition[i][0] = standaloneVaR;
+
+            // 2. Marginal VaR (MVaR): Change in total VaR per unit change in weight
+            double mVar = positionVal * marginalRisk.getDouble(i, 0) * zScore;
+            decomposition[i][1] = mVar;
+
+            // 3. Component VaR (CVaR): Absolute $ risk contribution summing up to total portfolio VaR
+            double cVar = totalVaR * (weightData[i][0] * marginalRisk.getDouble(i, 0)) / sigmaP;
+            decomposition[i][2] = cVar;
         }
 
-        // Multiply the L matrix and the random noise matrix
-        SimpleMatrix multMatrix = choleskyL.mult(new SimpleMatrix(randomMatrix));
+        return decomposition;
+    }
 
-        // Return the sum of all the cross matrix values
-        return multMatrix.elementSum();
+    public double performMonteCarloPortfolioTrial(SimpleMatrix choleskyL, double[] assetWeights, double[] assetMeans,
+                                                  double[] assetStdDevs, int timeHorizonDays) {
+        int numAssets = assetWeights.length;
+        Random rand = new Random();
+
+        // 1. Generate independent standard normal vector Z (N x 1)
+        SimpleMatrix zNormals = new SimpleMatrix(numAssets, 1);
+        for (int i = 0; i < numAssets; i++)
+            zNormals.set(i, 0, rand.nextGaussian());
+
+        // 2. Apply Cholesky decomposition to introduce correlation: X = L * Z + Drift
+        SimpleMatrix correlatedShocks = choleskyL.mult(zNormals);
+
+        // 3. Calculate simulated portfolio return over the horizon
+        double portfolioReturn = 0.0;
+        double dt = Math.sqrt(timeHorizonDays); // scaling by horizon time steps
+
+        for (int i = 0; i < numAssets; i++) {
+            double drift = (assetMeans[i] - 0.5 * Math.pow(assetStdDevs[i], 2)) * timeHorizonDays;
+            double shock = correlatedShocks.get(i, 0) * dt;
+            double assetReturn = Math.exp(drift + shock) - 1.0;
+
+            portfolioReturn += assetWeights[i] * assetReturn;
+        }
+
+        return portfolioReturn;
     }
 }
