@@ -3,6 +3,7 @@ package com.kelly.varengine;
 import com.kelly.varengine.enums.AssetClassEnum;
 import com.kelly.varengine.models.OHLCVBar;
 import com.kelly.varengine.models.PortfolioPosition;
+import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.beans.factory.annotation.*;
@@ -55,7 +56,7 @@ public class VarEngineApplication {
             positions.add(new PortfolioPosition(222222, AssetClassEnum.Derivative, "MSFT", 352800d, 20, 0.50));
             positions.add(new PortfolioPosition(333333, AssetClassEnum.FixedIncomeBond, "USB21", 5285300d, 500, 0.25));
 
-            Run(positions);
+            RunAnalysis(positions);
         }
         catch (Exception ex) {
             System.out.println();
@@ -63,7 +64,7 @@ public class VarEngineApplication {
         }
     }
 
-    public void Run(List<PortfolioPosition> positions)
+    public void RunAnalysis(List<PortfolioPosition> positions)
         throws URISyntaxException, IOException, InterruptedException
     {
         int points = 0;
@@ -178,7 +179,6 @@ public class VarEngineApplication {
         //          - Safe zone: represents area of bell curve within expected normal losses (at 95% or 99% confidence)
         //          - Tail area: segment area (1% or 5%) representing chosen significance level
 
-        record AssetPositionRiskOutcomeVaR(String positionName, double weight, double var, double mVar, double cVar) { }
         //  Key Parametric Outcome tables  <example>
         //      ===> Headers:  Asset/Risk Component      Position Weight    Standalone VaR   Marginal VaR   Component VaR
         //                     US Equities (S&P 500)     50%                $165,000         $125,000       $62,500
@@ -187,6 +187,7 @@ public class VarEngineApplication {
         //                     Diversification Benefit   --                 -$130,000        --             --
         //                     Portfolio Parametric VaR  100%               $80,000          --             $80,000
 
+        record AssetPositionRiskOutcomeVaR(String positionName, double weight, double var, double mVar, double cVar) { }
         record MCSimulationByConfidence(double confidenceLevel, String percentile, double portfolioValueOutcome,
                                         double varMetric, double varMaxLossPct, double conditionalVarShortfall) { }
         //      ===> Headers:  Confidence Level      Simulated %       Portfolio Value       VaR Metric             Conditional VaR
