@@ -3,6 +3,7 @@ package com.kelly.varengine.services;
 import com.kelly.varengine.models.*;
 import com.kelly.varengine.providers.MassiveMarketDataSource;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
@@ -12,12 +13,13 @@ import java.time.LocalDate;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
+@Service
 public class DataLoaderService {
 
-    private MassiveMarketDataSource dataSource;
+    private final MassiveMarketDataSource dataSource;
 
-    public DataLoaderService() {
-        dataSource = new MassiveMarketDataSource();
+    public DataLoaderService(MassiveMarketDataSource _dataSource) {
+        dataSource = _dataSource;
     }
 
     public HashMap<LocalDate, OHLCVBar> getHistoricalQuotes(

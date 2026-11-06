@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.kelly.varengine.models.OHLCVBar;
 import org.springframework.beans.factory.annotation.*;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.databind.ObjectMapper;
 
@@ -14,6 +16,7 @@ import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
+@Service
 public class MassiveMarketDataSource {
 
     @Value("${app.massive.apiKey}")
@@ -91,7 +94,7 @@ public class MassiveMarketDataSource {
 
             if (parsedResult == null)
                 throw new IllegalStateException("Response was empty or null");
-            else if (!parsedResult.status().equalsIgnoreCase("OK"))
+            else if (!parsedResult.status().equalsIgnoreCase("OK") && !parsedResult.status().equalsIgnoreCase("DELAYED"))
                 throw new IllegalStateException(String.format("Response status returned '%s'", parsedResult.status()));
             else {
                 for (MsvBar bar : parsedResult.results()) {

@@ -23,7 +23,9 @@ public class VarEngineApplication {
     private final DataLoaderService dataLoaderService;
 
     public static void main(String[] args) {
-        SpringApplication.run(VarEngineApplication.class, args);
+        var context = SpringApplication.run(VarEngineApplication.class, args);
+        var appInstance = context.getBean(VarEngineApplication.class);
+        appInstance.RunTestPositions();
     }
 
     @Value("${app.monteCarlo.trialCount}")
@@ -55,7 +57,10 @@ public class VarEngineApplication {
 
             positions.add(new PortfolioPosition(111111, AssetClassEnum.Equity, "AAPL", 2581000d, 1000, 0.25));
             positions.add(new PortfolioPosition(222222, AssetClassEnum.Derivative, "MSFT", 352800d, 20, 0.50));
-            positions.add(new PortfolioPosition(333333, AssetClassEnum.FixedIncomeBond, "USB21", 5285300d, 500, 0.25));
+            positions.add(new PortfolioPosition(333333, AssetClassEnum.FixedIncomeBond, "GOOG", 5285300d, 500, 0.25));
+
+            System.out.println("Getting history data and analyzing portfolio...");
+            System.out.println();
 
             var response = RunAnalysis(positions);
 
@@ -91,7 +96,7 @@ public class VarEngineApplication {
             System.out.println();
             System.out.println("COMPONENT                   WEIGHT     STANDALONE V-A-R   MARGINAL V-A-R     COMPONENT V-A-R");
             for (var summary : response.parametricMethod().riskSummaries()) {
-                System.out.printf("%-26s  %8.1f%%  $%16.2f  $%16.2f  $16.2f",
+                System.out.printf("%-26s  %8.1f%%  $%16.2f  $%16.2f  $%16.2f",
                         summary.component(), summary.weight(), summary.stVaR(), summary.mVar(), summary.cVar());
                 System.out.println();
             }
