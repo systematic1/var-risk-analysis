@@ -3,7 +3,7 @@ package com.kelly.varengine;
 import com.kelly.varengine.enums.AssetClassEnum;
 import com.kelly.varengine.models.OHLCVBar;
 import com.kelly.varengine.models.PortfolioPosition;
-import com.kelly.varengine.records.ConfidenceVaRReportItem;
+import com.kelly.varengine.records.*;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -32,10 +32,14 @@ public class VarEngineApplication {
     @Value("${app.history.lookBackDays}")
     public int historyLookBackDays;
 
+    @Value("${app.parametric.confidenceLevel}")
+    public double confidenceLevel;
+
     @Value("${app.smoothing.lambda}")
     public double lambda;
 
-    public double[] confidenceLevels = { 0.99, 0.95, 0.99, 0.999 };
+    @Value("${app.history.timeHorizonDays}")
+    public int timeHorizonDays;
 
     public VarEngineApplication(MatrixServices matrixServices, VarServices varServices,
                                 DataLoaderService dataLoaderService) {
@@ -53,7 +57,60 @@ public class VarEngineApplication {
             positions.add(new PortfolioPosition(222222, AssetClassEnum.Derivative, "MSFT", 352800d, 20, 0.50));
             positions.add(new PortfolioPosition(333333, AssetClassEnum.FixedIncomeBond, "USB21", 5285300d, 500, 0.25));
 
-            RunAnalysis(positions);
+            var response = RunAnalysis(positions);
+
+            System.out.println("                            Value-At-Risk Analysis Results");
+            System.out.println("-----------------------------------------------------------------------------------------");
+            System.out.println();
+            System.out.println("Portfolio Inputs:");
+            System.out.println();
+            System.out.printf("ASSET NAME                                CLASS            VALUE $      QTY     WEIGHT");
+            for (var position : positions) {
+                System.out.printf("%-40s  %-15s  $%10.2f  %6d  %4.1f%%",
+                                position.getSymbol(), position.getAssetClass().toString(),
+                                position.getCurrentValue(), position.getQuantity(),
+                                position.getWeight() * 100.0
+                );
+                System.out.println();
+            }
+
+            System.out.println();
+            System.out.println("Portfolio Total Results:");
+            System.out.println();
+            System.out.printf("* Total Value-At-Risk:      $%.2f", response.varValue());
+            System.out.println();
+            System.out.printf("* V-A-R %% of total:        %4.1f%%", response.varPercent() * 100.0);
+            System.out.println();
+            System.out.printf("* Time Horizon (days):      %d", response.timeHorizonDays());
+            System.out.println();
+            System.out.printf("* History Lookback (days):  %d", response.historyLookbackDays());
+            System.out.println();
+
+            System.out.println();
+            System.out.println("Parametric Value-at-Risk Results:");
+            System.out.println();
+            System.out.println("COMPONENT                   WEIGHT     STANDALONE V-A-R   MARGINAL V-A-R     COMPONENT V-A-R");
+            for (var summary : response.parametricMethod().riskSummaries()) {
+                System.out.printf("%-26s  %8.1f%%  $%16.2f  $%16.2f  $16.2f",
+                        summary.component(), summary.weight(), summary.stVaR(), summary.mVar(), summary.cVar());
+                System.out.println();
+            }
+
+            System.out.println();
+            System.out.println("Monte Carlo Simulation Value-at-Risk Results:");
+            System.out.println();
+            System.out.printf("# Simulations:             %d", response.monteCarloSimulation().numSimulations());
+            System.out.println();
+            System.out.println("CONFIDENCE LEVEL   PERCENTILE   PORTFOLIO OUTCOME    V-A-R METRIC     MAX LOSS %     CONDITIONAL V-A-R");
+            for (var summary : response.monteCarloSimulation().riskSummaries()) {
+                System.out.printf("%17s  %11s  $%15.2f    $%14.2f  %13.1f  $%14.2f",
+                        summary.confidenceLevel() * 100.0, summary.percentile(), summary.outcomeValue(), summary.varMetric(),
+                        summary.maxLossPercent() * 100.0, summary.shortfallAmount());
+                System.out.println();
+            }
+
+            System.out.println();
+            System.out.println("-----------------------------------------------------------------------------------------");
         }
         catch (Exception ex) {
             System.out.println();
@@ -61,7 +118,7 @@ public class VarEngineApplication {
         }
     }
 
-    public void RunAnalysis(List<PortfolioPosition> positions)
+    public AnalysisResponse RunAnalysis(List<PortfolioPosition> positions)
         throws URISyntaxException, IOException, InterruptedException
     {
         int points = 0;
@@ -100,16 +157,13 @@ public class VarEngineApplication {
 
         // Compute the variance standard deviation (sigma)
         var variance = varServices.calculateVarianceSigma(covariantMatrix, positions);
+        var zScore = varServices.calculateZScore(confidenceLevel, variance, portfolioValue);
+        var totalVaR = varServices.calculateVaRValue(variance, zScore, portfolioValue);
+        var pctTotalVaR = totalVaR / portfolioValue;
 
-        // ---- Overall Value-at-Risk Summary Data
+        // ---- Value-at-Risk Summary Data
         // Creates VaR amounts and percentages based on the confidence levels [computes Z-Score normal distributions]
-        ConfidenceVaRReportItem[] confidenceVaRValues = new ConfidenceVaRReportItem[confidenceLevels.length];
-        java.util.stream.IntStream.range(0, confidenceLevels.length).parallel().forEach(level -> {
-            double confidenceVaR = varServices.calculateValueAtRisk(confidenceLevels[level], variance, portfolioValue);
-            double pctConfidenceVaR = Math.round(confidenceVaR * 10000.0 / portfolioValue) * 100.0;
-            String percentileString = varServices.getPercentileString(confidenceLevels[level]); // e.g. "10th"
-            confidenceVaRValues[level] = new ConfidenceVaRReportItem(confidenceLevels[level], percentileString, 0.0, confidenceVaR, 0.0, 0.0);
-        });
+        var parametricVaRValues = varServices.calculateRiskDecomposition(covariantMatrix, positions, portfolioValue, zScore);
 
         // ---- Monte Carlo Simulation setup
         // Creates Cholesky Decomposition matrix and uses the L matrix value
@@ -146,13 +200,38 @@ public class VarEngineApplication {
         Arrays.sort(trialPortfolioReturns);
 
         // Extract Key Percentiles (e.g., 10th, 5th, 1st percentiles)
+        double medianOutcomeValue = portfolioValue * (1.0 + trialPortfolioReturns[monteCarloTrialCount / 2]);
+        double[] simConfidenceLevels = { 0.90, 0.95, 0.99, 0.999 };
+
+        int[] percentileTier = new int[simConfidenceLevels.length];
+        double[] percentileOutcomes = new double[simConfidenceLevels.length];
+        double[] shortfallValues = new double[simConfidenceLevels.length];
+        double[] shortfallProbabilities = new double[simConfidenceLevels.length];
+
+        for (var index = 0; index < simConfidenceLevels.length; index++) {
+            percentileTier[index] = (int) (monteCarloTrialCount * simConfidenceLevels[index]);
+            percentileOutcomes[index] = portfolioValue * (1.0 + trialPortfolioReturns[index]);
+
+            // Compute Expected Shortfall (Conditional VaR) at 95% confidence (mean loss beyond 5th percentile)
+            double sumTailLosses = 0.0;
+            for (int trialIndex = 0; trialIndex < percentileTier[index]; trialIndex++)
+                sumTailLosses += (portfolioValue * trialPortfolioReturns[trialIndex]);
+
+            // Success Probability (% of runs where portfolio did not incur a catastrophic loss > 50%)
+            long successfulRuns = Arrays.stream(trialPortfolioReturns).filter(rtn -> rtn > -0.50).count();
+            double probabilitySuccess = (double) successfulRuns / monteCarloTrialCount;
+
+            shortfallValues[index] = sumTailLosses;
+            shortfallProbabilities[index] = 1.0 - probabilitySuccess;
+        }
+
+         /*
         int idx10 = (int) (monteCarloTrialCount * 0.10);
         int idx5  = (int) (monteCarloTrialCount * 0.05);
         int idx1  = (int) (monteCarloTrialCount * 0.01);
         int idx01 = (int) (monteCarloTrialCount * 0.001);
 
         double p90OutcomeValue = portfolioValue * (1.0 + trialPortfolioReturns[(int) (monteCarloTrialCount * 0.90)]);
-        double medianOutcomeValue = portfolioValue * (1.0 + trialPortfolioReturns[monteCarloTrialCount / 2]);
         double p10OutcomeValue = portfolioValue * (1.0 + trialPortfolioReturns[idx10]);
         double p5OutcomeValue  = portfolioValue * (1.0 + trialPortfolioReturns[idx5]);
         double p1OutcomeValue  = portfolioValue * (1.0 + trialPortfolioReturns[idx1]);
@@ -162,23 +241,45 @@ public class VarEngineApplication {
         for (int index = 0; index < idx5; index++)
             sumTailLosses += (portfolioValue * trialPortfolioReturns[index]);
 
-        double conditionalVaR95 = idx5 > 0 ? - (sumTailLosses / idx5) : 0.0;
-
         // Success Probability (% of runs where portfolio did not incur a catastrophic loss > 50%)
-        long mc_successfulRuns = Arrays.stream(trialPortfolioReturns).filter(rtn -> rtn > -0.50).count();
-        double mc_probabilitySuccess = (double) mc_successfulRuns / monteCarloTrialCount;
-        double mc_shortfallRisk = 1.0 - mc_probabilitySuccess;
+        long successfulRuns = Arrays.stream(trialPortfolioReturns).filter(rtn -> rtn > -0.50).count();
+        double probabilitySuccess = (double) successfulRuns / monteCarloTrialCount;
+        double shortfallRisk = 1.0 - probabilitySuccess;
+        */
+
+        var simConfidenceVaRValues = new ConfidenceVaRReportItem[simConfidenceLevels.length];
+        java.util.stream.IntStream.range(0, simConfidenceLevels.length).parallel().forEach(level -> {
+            double zScoreP = varServices.calculateZScore(simConfidenceLevels[level], variance, portfolioValue);
+            double varValueP = varServices.calculateVaRValue(variance, zScoreP, portfolioValue);
+            String percentileString = varServices.getPercentileString(simConfidenceLevels[level]);
+
+            var simVaRValues = new ConfidenceVaRReportItem(
+                simConfidenceLevels[level],
+                percentileString,
+                percentileOutcomes[level],
+                varValueP,
+                shortfallProbabilities[level],
+                shortfallValues[level]
+            );
+            simConfidenceVaRValues[level] = simVaRValues;
+        });
+
+        var parametricMethodData = new ParametricMethod(zScore, 0.0, covariantMatrix, parametricVaRValues);
+        var portfolioData = new PortfolioData(portfolioValue, variance, assetWeights, logReturnsMatrix, dynWeightReturnsMatrix);
+        var monteCarloSimData = new MonteCarloSimulation(monteCarloTrialCount, simConfidenceLevels, choleskyLMatrix, assetMeans,
+                assetStdDevs, medianOutcomeValue, trialPortfolioReturns, simConfidenceVaRValues);
+        var response = new AnalysisResponse(
+            totalVaR, pctTotalVaR, timeHorizonDays, confidenceLevel, historyLookBackDays, parametricMethodData,
+            portfolioData, monteCarloSimData
+        );
+
+        return response;
 
         // Produces the following output:
         //  Downside loss limit
         //      - Absolute VaR (maximum loss $)
         //      - Percentage VaR (% of portfolio value)       { var * 100 / portfolioValue }
         // --> confidenceVaRValues
-
-        //  Max loss projections at given confidence levels
-        //      - VaR Distribution chart (bell curve) per confidence level
-        //          - Safe zone: represents area of bell curve within expected normal losses (at 95% or 99% confidence)
-        //          - Tail area: segment area (1% or 5%) representing chosen significance level
 
         //  Key Parametric Outcome tables  <example>
         //      ===> Headers:  Asset/Risk Component      Position Weight    Standalone VaR   Marginal VaR   Component VaR
@@ -188,6 +289,7 @@ public class VarEngineApplication {
         //                     Diversification Benefit   --                 -$130,000        --             --
         //                     Portfolio Parametric VaR  100%               $80,000          --             $80,000
 
+        //  Key Simulation Tables at Multiple Confidence Level  <example>
         //      ===> Headers:  Confidence Level      Simulated %       Portfolio Value       VaR Metric             Conditional VaR
         //                                           Percentile        Outcome               (Max Loss)             Expected Shortfall
         //                     90.0%                 10th percentile   $9,150,000            $850,000 (8.5%)        $1,420,000
@@ -199,38 +301,42 @@ public class VarEngineApplication {
         //      Diversification Benefit: $ or % reduction in risk by mixing uncorrelated assets
         //      Marginal VaR (MVaR): Change in total portfolio VaR resulting from incremental 1% increase in asset's position
         //      Component VaR (CVaR): Aboslute amount of total VaR attributed directly to a specific asset or sector = asset_weight * mVAR
-        //  [Opt] Extreme shock modeling (market crashes volatility spikes, broken correlations)
 
         // -------- Overall data structure
         // double varValue   - var at confidence level
         // double varPercent  - var as % of total portfolio
         // int timeHorizonDays
         // double confidenceLevel
+        // int historyLookbackDays
         // parametricMethod: {
         //      parameters: {
         //          double zScore
         //          double assumedMean   - the expected return (mu) often set to 0 for short-term daily horizons
-        //          results: {
-        //              INDArray covariantMatrix
-        //          }
+        //          INDArray covariantMatrix
+        //      }
+        //      results: {
+        //          ParametricVarReportItem[] riskSummaries
         //      }
         // }
         // portfolio: {
         //      double portfolioValue   - total market value
         //      double portfolioVolatility   - annualized or scaled std dev of portfolio (sigma = SQRT(w<transposed> * SUM(w)))
         //      double[] weights  - allocation weight values of each asset
+        //      INDArray logarithmicReturns
+        //      INDArray dynamicallyWeightedReturns
         // }
         // monteCarloSimulation: {
         //      parameters: {
         //          int numSimulations
+        //          double[] simulationConfidenceLevels
         //      }
         //      results: {
-        //          double expectedShortfallCVar
-        //          double meanSimulatedReturn
-        //          double standardDeviation
-        //          double skewnessKurtosis
-        //          INDArray portfolioFinalValues
-        //          INDArray portfolioReturns
+        //          SimpleMatrix choleskyLMatrix
+        //          double[] assetMeanValues
+        //          double[] assetStdDevValues
+        //          double medianOutcomeValue
+        //          double trialVectorData
+        //          ConfidenceVaRReportItem[] riskSummaries
         //      }
         // }
     }

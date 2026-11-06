@@ -45,10 +45,9 @@ public class VarServices {
         return Math.sqrt(sigmaSquared);
     }
 
-    public double calculateValueAtRisk(double confidence, double variance, double portfolioValue) {
+    public double calculateZScore(double confidence, double variance, double portfolioValue) {
         NormalDistribution normalDist = new NormalDistribution();
-        double zScore = normalDist.inverseCumulativeProbability(confidence);
-        return portfolioValue * variance * zScore;
+        return normalDist.inverseCumulativeProbability(confidence);
     }
 
     public SimpleMatrix performCholeskyDecomposition(INDArray covariantMatrix) {
@@ -67,9 +66,10 @@ public class VarServices {
         return SimpleMatrix.wrap(cholesky.getT(null));
     }
 
-    public double[][] calculateRiskDecomposition(INDArray covariantMatrix, List<PortfolioPosition> positions, double portfolioValue, double zScore) {
+    public List<ParametricVarReportItem> calculateRiskDecomposition(INDArray covariantMatrix, List<PortfolioPosition> positions,
+                                                                    double portfolioValue, double zScore) {
         int n = positions.size();
-        double[][] decomposition = new double[n][3]; // [Standalone VaR, Marginal VaR, Component VaR]
+        var items = new ArrayList<ParametricVarReportItem>();
 
         // Extract weights vector (w) and position values (v)
         double[][] weightData = new double[n][1];
@@ -83,14 +83,15 @@ public class VarServices {
 
         // Portfolio variance and volatility (sigma_p)
         double sigmaP = calculateVarianceSigma(covariantMatrix, positions);
-        if (sigmaP == 0.0) return decomposition;
+        if (sigmaP == 0.0)
+            return items;
 
         // Marginal Risk Contribution (Vector): (Sigma * w) / sigma_p
         INDArray sigmaW = Sigma.mmul(w);
         INDArray marginalRisk = sigmaW.div(sigmaP);
 
         // Total Portfolio VaR
-        double totalVaR = portfolioValue * sigmaP * zScore;
+        double totalVaR = calculateVaRValue(sigmaP, zScore, portfolioValue);
 
         for (int index = 0; index < n; index++) {
             double positionVal = positions.get(index).getCurrentValue();
@@ -98,18 +99,26 @@ public class VarServices {
             // 1. Standalone VaR (VaR if asset was 100% of portfolio, using its diagonal variance)
             double assetStdDev = Math.sqrt(Sigma.getDouble(index, index));
             double standaloneVaR = positionVal * assetStdDev * zScore;
-            decomposition[index][0] = standaloneVaR;
 
             // 2. Marginal VaR (MVaR): Change in total VaR per unit change in weight
-            double mVar = positionVal * marginalRisk.getDouble(index, 0) * zScore;
-            decomposition[index][1] = mVar;
+            double mVaR = positionVal * marginalRisk.getDouble(index, 0) * zScore;
 
             // 3. Component VaR (CVaR): Absolute $ risk contribution summing up to total portfolio VaR
-            double cVar = totalVaR * (weightData[index][0] * marginalRisk.getDouble(index, 0)) / sigmaP;
-            decomposition[index][2] = cVar;
+            double cVaR = totalVaR * (weightData[index][0] * marginalRisk.getDouble(index, 0)) / sigmaP;
+            double pctContribution = cVaR / portfolioValue;
+
+            var item = new ParametricVarReportItem(
+                positions.get(index).getSymbol(), weightData[index][0], standaloneVaR, mVaR, cVaR, pctContribution
+            );
+
+            items.add(item);
         }
 
-        return decomposition;
+        return items;
+    }
+
+    public double calculateVaRValue(double sigmaP, double zScore, double portfolioValue) {
+        return sigmaP * zScore * portfolioValue;
     }
 
     public double performMonteCarloPortfolioTrial(SimpleMatrix choleskyL, double[] assetWeights, double[] assetMeans,
@@ -138,33 +147,6 @@ public class VarServices {
         }
 
         return portfolioReturn;
-    }
-
-    public List<ParametricVarReportItem> calculateParametricRiskDecomposition(List<PortfolioPosition> positions, INDArray covariantMatrix,
-                                                       double portfolioValue, double zScore) {
-        double[] weights = positions.stream()
-                .mapToDouble(PortfolioPosition::getWeight)
-                .toArray();
-        INDArray weightsVector = Nd4j.create(weights);
-        double portfolioVariance = Nd4j.getBlasWrapper().dot(weightsVector.transpose(), Nd4j.matmul(covariantMatrix, weightsVector));
-        double portfolioVolatility = Math.sqrt(portfolioVariance);
-        double totalVaR = portfolioValue * zScore * portfolioVolatility;
-
-        // Compute marginal VaR and each component's relative VaR
-        double marginalVaR = portfolioValue * zScore * (Nd4j.getBlasWrapper().dot(covariantMatrix, weightsVector) / portfolioVolatility);
-
-        var items = new ArrayList<ParametricVarReportItem>();
-        for (int index = 0; index < weights.length; index++) {
-            double componentVaR = weights[index] * marginalVaR;
-            double pctContribution = componentVaR / portfolioValue;
-            var item = new ParametricVarReportItem(
-                positions.get(index).getSymbol(), weights[index], totalVaR, marginalVaR, componentVaR, pctContribution
-            );
-
-            items.add(item);
-        }
-
-        return items;
     }
 
     public String getPercentileString(double confidenceLevel) {
