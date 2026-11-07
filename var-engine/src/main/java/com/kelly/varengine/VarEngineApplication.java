@@ -59,6 +59,7 @@ public class VarEngineApplication {
             positions.add(new PortfolioPosition(222222, AssetClassEnum.Derivative, "MSFT", 352800d, 20, 0.50));
             positions.add(new PortfolioPosition(333333, AssetClassEnum.FixedIncomeBond, "GOOG", 5285300d, 500, 0.25));
 
+            System.out.println();
             System.out.println("Getting history data and analyzing portfolio...");
             System.out.println();
 
@@ -120,6 +121,8 @@ public class VarEngineApplication {
         catch (Exception ex) {
             System.out.println();
             System.out.printf("!! Exception occurred:  %s%n", ex.getMessage());
+            System.out.println();
+            ex.printStackTrace();
         }
     }
 

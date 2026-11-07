@@ -21,7 +21,7 @@ public class MatrixServices {
         int[] positionIndex = {0};
         int[] seriesIndex = {0};
 
-        INDArray logReturns = Nd4j.zeros(points - 1, positionData.size());
+        INDArray logReturns = Nd4j.zeros(points, positionData.size());
 
         // TO DO: Use Vectorization instead of loops
         positionData.forEach((position, stockBars) -> {

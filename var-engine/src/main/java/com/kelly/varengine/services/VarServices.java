@@ -6,6 +6,7 @@ import java.util.Random;
 
 import com.kelly.varengine.models.PortfolioPosition;
 import com.kelly.varengine.records.ParametricVarReportItem;
+import org.nd4j.linalg.api.buffer.DataType;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
 import org.nd4j.linalg.dimensionalityreduction.PCA;
@@ -19,11 +20,13 @@ import org.springframework.stereotype.Service;
 @Service
 public class VarServices {
 
+    public VarServices() {
+        Nd4j.setDefaultDataTypes(DataType.DOUBLE, DataType.DOUBLE);
+    }
+
     public INDArray createCovariantMatrix(INDArray logReturnsMatrix) {
         INDArray[] matrices = PCA.covarianceMatrix(logReturnsMatrix);
-        return matrices.length > 0 ?
-                matrices[0] :
-                Nd4j.empty();
+        return matrices.length > 0 ? matrices[0] : Nd4j.empty();
     }
 
     public double calculateVarianceSigma(INDArray covariantMatrix, List<PortfolioPosition> positions) {
