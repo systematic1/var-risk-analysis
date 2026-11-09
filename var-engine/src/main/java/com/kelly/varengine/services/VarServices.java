@@ -49,9 +49,10 @@ public class VarServices {
         return Math.sqrt(sigmaSquared);
     }
 
-    public double calculateZScore(double confidence, double variance, double portfolioValue) {
+    public double calculateZScore(double confidence) {
         NormalDistribution normalDist = new NormalDistribution();
-        return normalDist.inverseCumulativeProbability(confidence);
+        double area = 1.0 - ((1.0 - confidence) / 2.0);
+        return normalDist.inverseCumulativeProbability(area);
     }
 
     public SimpleMatrix performCholeskyDecomposition(INDArray covariantMatrix) {
@@ -95,7 +96,7 @@ public class VarServices {
         INDArray marginalRisk = sigmaW.div(sigmaP);
 
         // Total Portfolio VaR
-        double totalVaR = calculateVaRValue(sigmaP, zScore, portfolioValue);
+        double totalVaR = calculateVaRValue(sigmaP, zScore);
 
         for (int index = 0; index < n; index++) {
             double positionVal = positions.get(index).getCurrentValue();
@@ -118,8 +119,8 @@ public class VarServices {
         return items;
     }
 
-    public double calculateVaRValue(double sigmaP, double zScore, double portfolioValue) {
-        return sigmaP * zScore * portfolioValue;
+    public double calculateVaRValue(double sigmaP, double zScore) {
+        return sigmaP * zScore;
     }
 
     public double performMonteCarloPortfolioTrial(SimpleMatrix choleskyL, double[] assetWeights, double[] assetMeans,

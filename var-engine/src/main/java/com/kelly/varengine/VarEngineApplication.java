@@ -55,9 +55,9 @@ public class VarEngineApplication {
         try {
             List<PortfolioPosition> positions = new ArrayList<>();
 
-            positions.add(new PortfolioPosition(111111, AssetClassEnum.Equity, "AAPL", 2581000d, 1000, 0.25));
-            positions.add(new PortfolioPosition(222222, AssetClassEnum.Derivative, "MSFT", 352800d, 20, 0.50));
-            positions.add(new PortfolioPosition(333333, AssetClassEnum.FixedIncomeBond, "GOOG", 5285300d, 500, 0.25));
+            positions.add(new PortfolioPosition(111111, AssetClassEnum.Equity, "AAPL", 2581000d, 1000, 0.50));
+            positions.add(new PortfolioPosition(222222, AssetClassEnum.Derivative, "MSFT", 3528000d, 200, 0.20));
+            positions.add(new PortfolioPosition(333333, AssetClassEnum.FixedIncomeBond, "GOOG", 5285300d, 500, 0.30));
 
             System.out.println();
             System.out.println("Getting history data and analyzing portfolio...");
@@ -65,8 +65,8 @@ public class VarEngineApplication {
 
             var response = RunAnalysis(positions);
 
-            System.out.println("                            Value-At-Risk Analysis Results");
-            System.out.println("-----------------------------------------------------------------------------------------");
+            System.out.println("                                Value-At-Risk Analysis Results");
+            System.out.println("=================================================================================================");
             System.out.println();
             System.out.println("Portfolio Inputs:");
             System.out.println();
@@ -98,10 +98,10 @@ public class VarEngineApplication {
             System.out.println();
             System.out.println("Parametric Value-at-Risk Results:");
             System.out.println();
-            System.out.println("COMPONENT                   WEIGHT     STANDALONE V-A-R   MARGINAL V-A-R     COMPONENT V-A-R");
+            System.out.println("COMPONENT                      WEIGHT  STANDALONE V-A-R   MARGINAL V-A-R     COMPONENT V-A-R");
             System.out.println("-------------------------------------------------------------------------------------------------");
             for (var summary : response.parametricMethod().riskSummaries()) {
-                System.out.printf("%-26s  %8.1f%%  $%,16.2f  $%,16.2f  $%,16.2f",
+                System.out.printf("%-26s  %6.1f%%    $%,16.2f  $%,16.2f  $%,16.2f",
                         summary.component(), summary.weight() * 100.0, summary.stVaR(), summary.mVar(), summary.cVar());
                 System.out.println();
             }
@@ -112,10 +112,10 @@ public class VarEngineApplication {
             System.out.printf("# Simulations:             %d", response.monteCarloSimulation().numSimulations());
             System.out.println();
             System.out.println();
-            System.out.println("CONFIDENCE LEVEL   PERCENTILE  PORTFOLIO OUTCOME    V-A-R METRIC            MAX LOSS %     CONDITIONAL V-A-R");
+            System.out.println("CONFIDENCE LEVEL   PERCENTILE  PORTFOLIO OUTCOME    V-A-R METRIC          MAX LOSS %   CONDITIONAL V-A-R");
             System.out.println("----------------------------------------------------------------------------------------------------------------");
             for (var summary : response.monteCarloSimulation().riskSummaries()) {
-                System.out.printf("%16s  %11s  $%,16.2f    $%,14.2f  %,10.1f     $%,14.2f",
+                System.out.printf("%16s  %11s  $%,16.2f    $%,16.2f    %6.1f      $%,14.2f",
                         summary.confidenceLevel() * 100.0, summary.percentile(), summary.outcomeValue(), summary.varMetric(),
                         summary.maxLossPercent() * 100.0, -summary.shortfallAmount());
                 System.out.println();
@@ -171,8 +171,8 @@ public class VarEngineApplication {
 
         // Compute the variance standard deviation (sigma)
         var variance = varServices.calculateVarianceSigma(covariantMatrix, positions);
-        var zScore = varServices.calculateZScore(confidenceLevel, variance, portfolioValue);
-        var totalVaR = varServices.calculateVaRValue(variance, zScore, portfolioValue);
+        var zScore = varServices.calculateZScore(confidenceLevel);
+        var totalVaR = varServices.calculateVaRValue(variance, zScore);
         var pctTotalVaR = totalVaR / portfolioValue;
 
         // ---- Value-at-Risk Summary Data
@@ -263,8 +263,8 @@ public class VarEngineApplication {
 
         var simConfidenceVaRValues = new ConfidenceVaRReportItem[simConfidenceLevels.length];
         java.util.stream.IntStream.range(0, simConfidenceLevels.length).parallel().forEach(level -> {
-            double zScoreP = varServices.calculateZScore(simConfidenceLevels[level], variance, portfolioValue);
-            double varValueP = varServices.calculateVaRValue(variance, zScoreP, portfolioValue);
+            double zScoreP = varServices.calculateZScore(simConfidenceLevels[level]);
+            double varValueP = varServices.calculateVaRValue(variance, zScoreP);
             String percentileString = varServices.getPercentileString(simConfidenceLevels[level]);
 
             var simVaRValues = new ConfidenceVaRReportItem(
