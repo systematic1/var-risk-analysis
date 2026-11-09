@@ -35,15 +35,14 @@ public class VarServices {
         for (int index = 0; index < positions.size(); index++)
             positionData[index][0] = positions.get(index).getCurrentValue();
 
-        // Multiple covariant matrix values by position vertical vector
+        // Multiply covariant matrix values by position vertical vector
         INDArray valueMatrix = Nd4j.create(positionData);
-        INDArray intermediateMatrix = covariantMatrix.mul(valueMatrix);
+        INDArray intermediateMatrix = valueMatrix.mul(covariantMatrix);
 
         // Transpose the resulting matrix (intermediate) and then multiply by positions matrix
         INDArray intermediateTransposed = intermediateMatrix.transpose();
-        INDArray sigmaSquaredMatrix = valueMatrix.mmul(intermediateTransposed);
+        INDArray sigmaSquaredMatrix = intermediateTransposed.mmul(valueMatrix);
 
-        // Summate all the values in the resulting matrix, which is sigma^2
         double sigmaSquared = sigmaSquaredMatrix.sumNumber().doubleValue();
 
         // Variance is the square root of sigma^2
@@ -86,7 +85,7 @@ public class VarServices {
         INDArray w = Nd4j.create(weightData);
         INDArray Sigma = covariantMatrix;
 
-        // Portfolio variance and volatility (sigma_p)
+        // Portfolio variance (sigma_p)
         double sigmaP = calculateVarianceSigma(covariantMatrix, positions);
         if (sigmaP == 0.0)
             return items;
@@ -101,14 +100,11 @@ public class VarServices {
         for (int index = 0; index < n; index++) {
             double positionVal = positions.get(index).getCurrentValue();
 
-            // 1. Standalone VaR (VaR if asset was 100% of portfolio, using its diagonal variance)
             double assetStdDev = Math.sqrt(Sigma.getDouble(index, index));
             double standaloneVaR = positionVal * assetStdDev * zScore;
 
-            // 2. Marginal VaR (MVaR): Change in total VaR per unit change in weight
             double mVaR = positionVal * marginalRisk.getDouble(index, 0) * zScore;
 
-            // 3. Component VaR (CVaR): Absolute $ risk contribution summing up to total portfolio VaR
             double cVaR = totalVaR * (weightData[index][0] * marginalRisk.getDouble(index, 0)) / sigmaP;
             double pctContribution = cVaR / portfolioValue;
 
@@ -136,10 +132,8 @@ public class VarServices {
         for (int index = 0; index < numAssets; index++)
             zNormals.set(index, 0, rand.nextGaussian());
 
-        // 2. Apply Cholesky decomposition to introduce correlation: X = L * Z + Drift
         SimpleMatrix correlatedShocks = choleskyL.mult(zNormals);
 
-        // 3. Calculate simulated portfolio return over the horizon
         double portfolioReturn = 0.0;
         double dt = Math.sqrt(timeHorizonDays); // scaling by horizon time steps
 
@@ -163,6 +157,6 @@ public class VarServices {
             case 3 -> "rd";
             default -> "th";
         };
-        return String.format("%s%s", percentile, suffix);
+        return String.format("%3.1f%s", percentile, suffix);
     }
 }

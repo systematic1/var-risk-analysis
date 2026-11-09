@@ -10,6 +10,8 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
+import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 
 @Service
 public class MatrixServices {
@@ -40,13 +42,6 @@ public class MatrixServices {
         return logReturns;
     }
 
-    /** From AI:
-     * Computes dynamic inverse-volatility weights from a matrix of log returns using EWMA variance.
-     *
-     * @param logReturns 2D INDArray where rows = time steps (T), columns = assets (N)
-     * @param lambda     The EWMA smoothing/decay factor (typically 0.94 for daily data)
-     * @return 2D INDArray of the same shape containing the dynamic weights for each asset at each time step
-     */
     public INDArray computeDynamicWeights(INDArray logReturns, double lambda) {
         long timeSteps = logReturns.size(0);
         long numAssets = logReturns.size(1);
@@ -66,7 +61,8 @@ public class MatrixServices {
         weightMatrix.putRow(0, initialWeights);
 
         // Loop through time steps to compute EWMA variance and inverse weights dynamically
-        for (int t = 1; t < timeSteps; t++) {
+        LongStream.range(1, timeSteps).parallel().forEach(t -> {
+        //for (int t = 1; t < timeSteps; t++) {
             // Formula: σ²_t = λ * σ²_{t-1} + (1 - λ) * r_{t-1}²
             INDArray pastVariance = varianceMatrix.getRow(t - 1);
             INDArray pastSquaredReturn = squaredReturns.getRow(t - 1);
@@ -88,31 +84,10 @@ public class MatrixServices {
             INDArray normalizedWeights = invVol.div(rowSum);
 
             weightMatrix.putRow(t, normalizedWeights);
-        }
+        });
 
         return weightMatrix;
     }
-
-    // W<i> = (Quantity<i>  X Price<i>) / (Total Portfolio Value)
-    /*public INDArray createDynamicWeights(List<PortfolioPosition> positions) {
-        double totalValue = getPortfolioTotalValue(positions);
-
-        var dynWeights = Nd4j.zeros(positions.size(), 1);
-        int qty;
-        double wValue, price;
-
-        if (totalValue != 0.0) {
-            for (int index = 0; index < positions.size(); index++) {
-                qty = positions.get(index).getQuantity();
-                price = positions.get(index).getCurrentValue();
-                wValue = (qty * price) / totalValue;
-
-                dynWeights.put(index, 0, wValue);
-            }
-        }
-
-        return dynWeights;
-    }*/
 
     public double getPortfolioTotalValue(List<PortfolioPosition> positions) {
         double totalValue = 0.0;
