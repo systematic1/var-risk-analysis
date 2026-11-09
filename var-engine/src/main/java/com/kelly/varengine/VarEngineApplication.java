@@ -190,6 +190,8 @@ public class VarEngineApplication {
         portfolioHistoryData.forEach((position, histData) -> {
             double[] total = { 0.0, 0.0 };
             histData.forEach((localDate, bar) -> total[0] += bar.getAdjClosePrice());
+            // ----------------- BUG: Calculate mean & std dev from a list of daily percentage change
+            // -----------------  Return(t) = (Price(t) - Price(t-1)) / Price(t-1)
             if (!histData.isEmpty()) {
                 double mean = total[0] / histData.size();
                 assetMeanValues.put(position.getSymbol(), mean);
@@ -238,28 +240,6 @@ public class VarEngineApplication {
             shortfallValues[index] = sumTailLosses;
             shortfallProbabilities[index] = 1.0 - probabilitySuccess;
         }
-
-         /*
-        int idx10 = (int) (monteCarloTrialCount * 0.10);
-        int idx5  = (int) (monteCarloTrialCount * 0.05);
-        int idx1  = (int) (monteCarloTrialCount * 0.01);
-        int idx01 = (int) (monteCarloTrialCount * 0.001);
-
-        double p90OutcomeValue = portfolioValue * (1.0 + trialPortfolioReturns[(int) (monteCarloTrialCount * 0.90)]);
-        double p10OutcomeValue = portfolioValue * (1.0 + trialPortfolioReturns[idx10]);
-        double p5OutcomeValue  = portfolioValue * (1.0 + trialPortfolioReturns[idx5]);
-        double p1OutcomeValue  = portfolioValue * (1.0 + trialPortfolioReturns[idx1]);
-
-        // Compute Expected Shortfall (Conditional VaR) at 95% confidence (mean loss beyond 5th percentile)
-        double sumTailLosses = 0.0;
-        for (int index = 0; index < idx5; index++)
-            sumTailLosses += (portfolioValue * trialPortfolioReturns[index]);
-
-        // Success Probability (% of runs where portfolio did not incur a catastrophic loss > 50%)
-        long successfulRuns = Arrays.stream(trialPortfolioReturns).filter(rtn -> rtn > -0.50).count();
-        double probabilitySuccess = (double) successfulRuns / monteCarloTrialCount;
-        double shortfallRisk = 1.0 - probabilitySuccess;
-        */
 
         var simConfidenceVaRValues = new ConfidenceVaRReportItem[simConfidenceLevels.length];
         java.util.stream.IntStream.range(0, simConfidenceLevels.length).parallel().forEach(level -> {
