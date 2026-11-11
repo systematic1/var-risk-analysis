@@ -3,6 +3,7 @@ package com.kelly.varengine.services;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.stream.IntStream;
 
 import com.kelly.varengine.models.PortfolioPosition;
 import com.kelly.varengine.records.ParametricVarReportItem;
@@ -87,7 +88,7 @@ public class VarServices {
         INDArray Sigma = covariantMatrix;
 
         // Portfolio variance (sigma_p)
-        double sigmaP = calculateVarianceSigma(covariantMatrix, positions);
+        double sigmaP = calculateVarianceSigma(covariantMatrix, positions) / portfolioValue;
         if (sigmaP == 0.0)
             return items;
 
@@ -96,9 +97,9 @@ public class VarServices {
         INDArray marginalRisk = sigmaW.div(sigmaP);
 
         // Total Portfolio VaR
-        double totalVaR = calculateVaRValue(sigmaP, zScore);
+        double totalVaR = calculateVaRValue(sigmaP * portfolioValue, zScore);
 
-        for (int index = 0; index < n; index++) {
+        IntStream.range(0, n).parallel().forEach(index -> {
             double positionVal = positions.get(index).getCurrentValue();
 
             double assetStdDev = Math.sqrt(Sigma.getDouble(index, index));
@@ -106,7 +107,7 @@ public class VarServices {
 
             double mVaR = positionVal * marginalRisk.getDouble(index, 0) * zScore;
 
-            double cVaR = totalVaR * (weightData[index][0] * marginalRisk.getDouble(index, 0)) / sigmaP;
+            double cVaR = mVaR * weightData[index][0]; //totalVaR * (weightData[index][0] * marginalRisk.getDouble(index, 0)) / sigmaP;
             double pctContribution = cVaR / portfolioValue;
 
             var item = new ParametricVarReportItem(
@@ -114,39 +115,13 @@ public class VarServices {
             );
 
             items.add(item);
-        }
+        });
 
         return items;
     }
 
     public double calculateVaRValue(double sigmaP, double zScore) {
         return sigmaP * zScore;
-    }
-
-    public double performMonteCarloPortfolioTrial(SimpleMatrix choleskyL, double[] assetWeights, double[] assetMeans,
-                                                  double[] assetStdDevs, int timeHorizonDays) {
-        int numAssets = assetWeights.length;
-        Random rand = new Random();
-
-        // 1. Generate independent standard normal vector Z (N x 1)
-        SimpleMatrix zNormals = new SimpleMatrix(numAssets, 1);
-        for (int index = 0; index < numAssets; index++)
-            zNormals.set(index, 0, rand.nextGaussian());
-
-        SimpleMatrix correlatedShocks = choleskyL.mult(zNormals);
-
-        double portfolioReturn = 0.0;
-        double dt = Math.sqrt(timeHorizonDays); // scaling by horizon time steps
-
-        for (int index = 0; index < numAssets; index++) {
-            double drift = (assetMeans[index] - 0.5 * Math.pow(assetStdDevs[index], 2)) * timeHorizonDays;
-            double shock = correlatedShocks.get(index, 0) * dt;
-            double assetReturn = Math.exp(drift + shock) - 1.0;
-
-            portfolioReturn += assetWeights[index] * assetReturn;
-        }
-
-        return portfolioReturn;
     }
 
     public String getPercentileString(double confidenceLevel) {
