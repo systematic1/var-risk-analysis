@@ -2,8 +2,6 @@ package com.kelly.varengine.services;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
-import java.util.stream.IntStream;
 
 import com.kelly.varengine.models.PortfolioPosition;
 import com.kelly.varengine.records.ParametricVarReportItem;
@@ -85,7 +83,6 @@ public class VarServices {
             weightData[i][0] = valueData[i][0] / portfolioValue;
         }
         INDArray w = Nd4j.create(weightData);
-        INDArray Sigma = covariantMatrix;
 
         // Portfolio variance (sigma_p)
         double sigmaP = calculateVarianceSigma(covariantMatrix, positions) / portfolioValue;
@@ -93,16 +90,16 @@ public class VarServices {
             return items;
 
         // Marginal Risk Contribution (Vector): (Sigma * w) / sigma_p
-        INDArray sigmaW = Sigma.mmul(w);
+        INDArray sigmaW = covariantMatrix.mmul(w);
         INDArray marginalRisk = sigmaW.div(sigmaP);
 
         // Total Portfolio VaR
-        double totalVaR = calculateVaRValue(sigmaP * portfolioValue, zScore);
+        //double totalVaR = calculateVaRValue(sigmaP * portfolioValue, zScore);
 
-        IntStream.range(0, n).parallel().forEach(index -> {
+        for (int index = 0; index < n; index++) {
             double positionVal = positions.get(index).getCurrentValue();
 
-            double assetStdDev = Math.sqrt(Sigma.getDouble(index, index));
+            double assetStdDev = Math.sqrt(covariantMatrix.getDouble(index, index));
             double standaloneVaR = positionVal * assetStdDev * zScore;
 
             double mVaR = positionVal * marginalRisk.getDouble(index, 0) * zScore;
@@ -115,7 +112,7 @@ public class VarServices {
             );
 
             items.add(item);
-        });
+        }
 
         return items;
     }

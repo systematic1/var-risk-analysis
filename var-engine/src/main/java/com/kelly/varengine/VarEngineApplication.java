@@ -4,7 +4,6 @@ import com.kelly.varengine.enums.AssetClassEnum;
 import com.kelly.varengine.models.OHLCVBar;
 import com.kelly.varengine.models.PortfolioPosition;
 import com.kelly.varengine.records.*;
-import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.beans.factory.annotation.*;
@@ -38,9 +37,6 @@ public class VarEngineApplication {
     @Value("${app.parametric.confidenceLevel}")
     public double confidenceLevel;
 
-    @Value("${app.smoothing.lambda}")
-    public double lambda;
-
     @Value("${app.history.timeHorizonDays}")
     public int timeHorizonDays;
 
@@ -72,10 +68,10 @@ public class VarEngineApplication {
             System.out.println();
             System.out.println("Portfolio Inputs:");
             System.out.println();
-            System.out.println("ASSET NAME                                CLASS            VALUE $            QTY       WEIGHT");
+            System.out.println("ASSET NAME                      CLASS                 VALUE $            QTY       WEIGHT");
             System.out.println("------------------------------------------------------------------------------------------------");
             for (var position : positions) {
-                System.out.printf("%-40s  %-15s  $%,14.2f    %,6d    %4.1f%%",
+                System.out.printf("%-30s  %-20s  $%,14.2f    %,6d    %4.1f%%",
                                 position.getSymbol(), position.getAssetClass().toString(),
                                 position.getCurrentValue(), position.getQuantity(),
                                 position.getWeight() * 100.0
@@ -90,7 +86,7 @@ public class VarEngineApplication {
             System.out.println();
             System.out.printf("* Total Value-At-Risk:      $%,.2f", response.varValue());
             System.out.println();
-            System.out.printf("* V-A-R %% of total:        %,.1f%%", response.varPercent() * 100.0);
+            System.out.printf("* V-A-R %% of total:         %,.1f%%", response.varPercent() * 100.0);
             System.out.println();
             System.out.printf("* Time Horizon (days):      %d", response.timeHorizonDays());
             System.out.println();
@@ -100,7 +96,7 @@ public class VarEngineApplication {
             System.out.println();
             System.out.println("Parametric Value-at-Risk Results:");
             System.out.println();
-            System.out.println("COMPONENT                      WEIGHT  STANDALONE V-A-R   MARGINAL V-A-R     COMPONENT V-A-R");
+            System.out.println("COMPONENT                     WEIGHT   STANDALONE V-A-R   MARGINAL V-A-R     COMPONENT V-A-R");
             System.out.println("-------------------------------------------------------------------------------------------------");
             for (var summary : response.parametricMethod().riskSummaries()) {
                 System.out.printf("%-26s  %6.1f%%    $%,16.2f  $%,16.2f  $%,16.2f",
