@@ -134,12 +134,12 @@ public class VarEngineApplication {
         throws URISyntaxException, IOException, InterruptedException
     {
         int points = 0;
-        HashMap<PortfolioPosition, HashMap<LocalDate, OHLCVBar>> portfolioHistoryData = new HashMap<>();
+        Map<PortfolioPosition, Map<LocalDate, OHLCVBar>> portfolioHistoryData = new LinkedHashMap<>();
 
         // Loads historical backtest data via Massive
         for (var positionItem : positions) {
             LocalDate startDate = LocalDate.now().minusDays(historyLookBackDays);
-            HashMap<LocalDate, OHLCVBar> historicalQuotes =
+            Map<LocalDate, OHLCVBar> historicalQuotes =
                 dataLoaderService.getHistoricalQuotes(positionItem.getSymbol(), startDate, LocalDate.now());
 
             portfolioHistoryData.put(positionItem, historicalQuotes);
@@ -148,9 +148,7 @@ public class VarEngineApplication {
             // Fills in gaps
             int correctedCount = dataLoaderService.interpolateMissingData(historicalQuotes, startDate);
 
-            dataLoaderService.waitDelayTime()
-                    .thenAccept(result -> {})
-                    .exceptionally(exception -> null);
+            dataLoaderService.waitDelayTime();
         }
 
         // Calculate the sum of the portfolio positions
@@ -170,7 +168,7 @@ public class VarEngineApplication {
         var totalVaR = varServices.calculateVaRValue(variance, zScore);
         var pctTotalVaR = totalVaR / portfolioValue;
 
-        double[] assetWeights = positions.stream().mapToDouble(p -> p.getCurrentValue() / portfolioValue).toArray();
+        double[] assetWeights = positions.stream().mapToDouble(PortfolioPosition::getWeight).toArray();
 
         // ---- Value-at-Risk Summary Data
         // Creates VaR amounts and percentages based on the confidence levels [computes Z-Score normal distributions]

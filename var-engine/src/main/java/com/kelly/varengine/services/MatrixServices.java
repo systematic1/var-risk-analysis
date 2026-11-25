@@ -15,7 +15,7 @@ import java.util.stream.LongStream;
 @Service
 public class MatrixServices {
 
-    public INDArray calculateWeightedLogReturnsPercentageChange(HashMap<PortfolioPosition, HashMap<LocalDate, OHLCVBar>> portfolioHistoricalData) {
+    public INDArray calculateWeightedLogReturnsPercentageChange(Map<PortfolioPosition, Map<LocalDate, OHLCVBar>> portfolioHistoricalData) {
         var allDates = new HashSet<LocalDate>();
         double[] pctChgAmount = {0.0};
         int[] pctChgIndex = {0};

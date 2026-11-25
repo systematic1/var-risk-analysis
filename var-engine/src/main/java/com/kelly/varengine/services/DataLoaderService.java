@@ -11,7 +11,7 @@ import java.net.URISyntaxException;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 @Service
 public class DataLoaderService {
@@ -22,41 +22,71 @@ public class DataLoaderService {
         dataSource = _dataSource;
     }
 
-    public HashMap<LocalDate, OHLCVBar> getHistoricalQuotes(
+    public Map<LocalDate, OHLCVBar> getHistoricalQuotes(
             String symbol,
             LocalDate startDate,
             LocalDate endDate)
         throws IllegalArgumentException, SecurityException, ResponseStatusException,
             URISyntaxException, IOException, InterruptedException
     {
-        return dataSource.getDailyQuotes(symbol, startDate, endDate);
+        // Ensure the map is sorted by key (datetime) (LinkedHashMap)
+        return dataSource
+                .getDailyQuotes(symbol, startDate, endDate)
+                .entrySet()
+                .stream()
+                .sorted(Map.Entry.comparingByKey())
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        Map.Entry::getValue,
+                        (existing, replacement) -> existing,
+                        LinkedHashMap::new
+                ));
     }
 
     @Async
-    public CompletableFuture<Void> waitDelayTime() {
+    public void waitDelayTime() {
         long waitTime = (long)dataSource.getDelayBetweenCallsSeconds() * 1000;
         try {
             Thread.sleep(waitTime);
         }
         catch (InterruptedException ex) { }
-
-        return CompletableFuture.completedFuture(null);
     }
 
-    // When not all positions have enough history data to satisfy the look-back time frame:
-            /*
-                You start with the longest available data and get the covariance matrix of that.
-                For the next set of available data, you regress them against the data that is available
-                longer and use the regression coefficients to expand the covariance matrix (and means).
-                You then iterate through each unique group of data, steadily shrinking the amount of data
-                used in each regression.
-            */
+    public int interpolateMissingData(Map<LocalDate, OHLCVBar> quoteData, LocalDate earliestDate) {
+        double[] lastPrice = {0.0};
+        LocalDate[] lastDate = {LocalDate.MIN};
+        Map<LocalDate, OHLCVBar> addedDates = new LinkedHashMap<>();
 
-    // When there are a few dates missing from one asset data history stream - interpolate missing data points
+        quoteData.forEach((date, bars) -> {
+            // if a weekday was skipped in the data
+            if (lastDate[0] != date.minusDays(-1L) && lastDate[0] != LocalDate.MIN) {
+                if (isWeekday(date)) {
+                    var paddedBar = new OHLCVBar(lastPrice[0], lastPrice[0], lastPrice[0], lastPrice[0], lastPrice[0], 0);
+                    addedDates.put(date, paddedBar);
+                }
+            }
+            else
+                lastPrice[0] = bars.getAdjClosePrice();
 
-    public int interpolateMissingData(HashMap<LocalDate, OHLCVBar> quoteData, LocalDate earliestDate) {
-        // To do - would add missing date data via interpolation and return the number of days that were added
-        return 0;
+            lastDate[0] = date;
+        });
+
+        if (!addedDates.isEmpty()) {
+            // add the new date bars to the quote data and then force it to be sorted
+            quoteData.putAll(addedDates);
+            quoteData = quoteData
+                    .entrySet()
+                    .stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .collect(Collectors.toMap(
+                            Map.Entry::getKey,
+                            Map.Entry::getValue,
+                            (existing, replacement) -> existing,
+                            LinkedHashMap::new)
+                    );
+        }
+
+        return addedDates.size();
     }
 
     private boolean isWeekday(LocalDate date) {

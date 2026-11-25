@@ -70,8 +70,10 @@ public class VarServices {
         return SimpleMatrix.wrap(cholesky.getT(null));
     }
 
-    public List<ParametricVarReportItem> calculateRiskDecomposition(INDArray covariantMatrix, List<PortfolioPosition> positions,
-                                                                    double portfolioValue, double zScore) {
+    public List<ParametricVarReportItem> calculateRiskDecomposition(INDArray covariantMatrix,
+                                                                    List<PortfolioPosition> positions,
+                                                                    double portfolioValue,
+                                                                    double zScore) {
         int n = positions.size();
         var items = new ArrayList<ParametricVarReportItem>();
 

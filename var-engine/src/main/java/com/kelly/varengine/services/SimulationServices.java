@@ -33,9 +33,15 @@ public class SimulationServices {
         }
 
         // #Run parallel Monte Carlo trials
-        double[] assetWeights = positions.stream().mapToDouble(p -> p.getCurrentValue() / portfolioValue).toArray();
-        double[] assetMeans = positions.stream().mapToDouble(p -> assetMeanValues.get(p.getSymbol())).toArray();
-        double[] assetStdDevs = positions.stream().mapToDouble(p -> assetStdDevValues.get(p.getSymbol())).toArray();
+        double[] assetWeights = positions.stream()
+                .mapToDouble(p -> p.getCurrentValue() / portfolioValue)
+                .toArray();
+        double[] assetMeans = positions.stream()
+                .mapToDouble(p -> assetMeanValues.get(p.getSymbol()))
+                .toArray();
+        double[] assetStdDevs = positions.stream()
+                .mapToDouble(p -> assetStdDevValues.get(p.getSymbol()))
+                .toArray();
 
         double[] trialPortfolioReturns = new double[maxTrialCount];
         java.util.stream.IntStream.range(0, maxTrialCount).parallel().forEach(index ->
@@ -55,21 +61,18 @@ public class SimulationServices {
 
         for (var index = 0; index < simConfidenceLevels.length; index++) {
             percentileTier[index] = (int) (maxTrialCount * (1.0 - simConfidenceLevels[index]));
-            percentileOutcomes[index] = portfolioValue * (1.0 + trialPortfolioReturns[index]);
+            int tierValue = percentileTier[index] != 0 ? percentileTier[index] : 1;
+            percentileOutcomes[index] = portfolioValue * (1.0 + trialPortfolioReturns[tierValue]);
 
             // Compute Expected Shortfall (Conditional VaR) at 95% confidence (mean loss beyond 5th percentile)
             double sumTailLosses = 0.0;
-            for (int trialIndex = 0; trialIndex < percentileTier[index]; trialIndex++)
+            for (int trialIndex = 0; trialIndex < tierValue; trialIndex++)
                 sumTailLosses += trialPortfolioReturns[trialIndex];
 
-            sumTailLosses = sumTailLosses * portfolioValue / percentileTier[index];
-
-            // Success Probability (% of runs where portfolio did not incur a catastrophic loss > 50%)
-            //long successfulRuns = Arrays.stream(trialPortfolioReturns).filter(rtn -> rtn > -0.50).count();
-            //double probabilitySuccess = (double) successfulRuns / maxTrialCount;
+            sumTailLosses = sumTailLosses * portfolioValue / tierValue;
 
             shortfallValues[index] = Math.abs(sumTailLosses);
-            maxLoss[index] = Math.abs(trialPortfolioReturns[percentileTier[index]]);
+            maxLoss[index] = Math.abs(trialPortfolioReturns[tierValue]);
         }
 
         var simConfidenceVaRValues = new ConfidenceVaRReportItem[simConfidenceLevels.length];
@@ -98,7 +101,7 @@ public class SimulationServices {
         int numAssets = assetWeights.length;
         Random rand = new Random();
 
-        // 1. Generate independent standard normal vector Z (N x 1)
+        // Generate independent standard normal vector Z (N x 1)
         SimpleMatrix zNormals = new SimpleMatrix(numAssets, 1);
         for (int index = 0; index < numAssets; index++)
             zNormals.set(index, 0, rand.nextGaussian());

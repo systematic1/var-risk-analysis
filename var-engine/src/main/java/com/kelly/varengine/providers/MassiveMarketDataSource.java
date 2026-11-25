@@ -39,7 +39,7 @@ public class MassiveMarketDataSource {
 
     public MassiveMarketDataSource() { }
 
-    public HashMap<LocalDate, OHLCVBar> getDailyQuotes(String symbol,
+    public Map<LocalDate, OHLCVBar> getDailyQuotes(String symbol,
                                                        LocalDate fromDate,
                                                        LocalDate toDateInclusive)
             throws IllegalArgumentException, SecurityException, ResponseStatusException,
@@ -101,7 +101,7 @@ public class MassiveMarketDataSource {
                     if (bar.h < bar.l)
                         continue;
 
-                    LocalDateTime barDateUtc = LocalDateTime.ofEpochSecond(bar.t(), 0, ZoneOffset.UTC);
+                    LocalDateTime barDateUtc = LocalDateTime.ofInstant(Instant.ofEpochMilli(bar.t()), ZoneOffset.UTC);
                     ZonedDateTime barDateEst = barDateUtc.atZone(ZoneOffset.UTC).withZoneSameInstant(zoneId);
 
                     OHLCVBar series = new OHLCVBar(bar.o(), bar.h(), bar.l(), bar.c(), bar.c(), bar.v());
