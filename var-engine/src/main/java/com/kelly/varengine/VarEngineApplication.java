@@ -179,7 +179,7 @@ public class VarEngineApplication {
         var choleskyLMatrix = varServices.performCholeskyDecomposition(covariantMatrix);
 
         var monteCarloSimData = simulationServices.performMonteCarloSimulation(positions, logReturnsMatrix, choleskyLMatrix,
-                monteCarloTrialCount, portfolioValue, variance);
+                monteCarloTrialCount, portfolioValue, variance, timeHorizonDays);
 
         var parametricMethodData = new ParametricMethod(zScore, 0.0, covariantMatrix, parametricVaRValues);
         var portfolioData = new PortfolioData(portfolioValue, variance, assetWeights, logReturnsMatrix);

@@ -19,7 +19,10 @@ import org.springframework.stereotype.Service;
 @Service
 public class VarServices {
 
+    private final NormalDistribution normalDist;
+
     public VarServices() {
+        normalDist = new NormalDistribution();
         Nd4j.setDefaultDataTypes(DataType.DOUBLE, DataType.DOUBLE);
     }
 
@@ -49,7 +52,6 @@ public class VarServices {
     }
 
     public double calculateZScore(double confidence) {
-        NormalDistribution normalDist = new NormalDistribution();
         double area = 1.0 - ((1.0 - confidence) / 2.0);
         return normalDist.inverseCumulativeProbability(area);
     }
@@ -75,7 +77,7 @@ public class VarServices {
                                                                     double portfolioValue,
                                                                     double zScore) {
         int n = positions.size();
-        var items = new ArrayList<ParametricVarReportItem>();
+        var items = new ArrayList<ParametricVarReportItem>(n);
 
         // Extract weights vector (w) and position values (v)
         double[][] weightData = new double[n][1];
@@ -95,9 +97,6 @@ public class VarServices {
         INDArray sigmaW = covariantMatrix.mmul(w);
         INDArray marginalRisk = sigmaW.div(sigmaP);
 
-        // Total Portfolio VaR
-        //double totalVaR = calculateVaRValue(sigmaP * portfolioValue, zScore);
-
         for (int index = 0; index < n; index++) {
             double positionVal = positions.get(index).getCurrentValue();
 
@@ -106,7 +105,7 @@ public class VarServices {
 
             double mVaR = positionVal * marginalRisk.getDouble(index, 0) * zScore;
 
-            double cVaR = mVaR * weightData[index][0]; //totalVaR * (weightData[index][0] * marginalRisk.getDouble(index, 0)) / sigmaP;
+            double cVaR = mVaR * weightData[index][0];
             double pctContribution = cVaR / portfolioValue;
 
             var item = new ParametricVarReportItem(

@@ -8,6 +8,7 @@ import org.nd4j.linalg.api.ndarray.INDArray;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.random.RandomGenerator.SplittableGenerator;
 
 @Service
 public class SimulationServices {
@@ -17,35 +18,27 @@ public class SimulationServices {
 
     public MonteCarloSimulation performMonteCarloSimulation(
             List<PortfolioPosition> positions, INDArray weightedPctChangeReturns,
-            SimpleMatrix choleskyLMatrix, int maxTrialCount, double portfolioValue, double variance) {
+            SimpleMatrix choleskyLMatrix, int maxTrialCount, double portfolioValue,
+            double variance, int timeHorizonDays) {
 
         // Calculate the mean values of each asset's historical value
-        HashMap<String, Double> assetMeanValues = new HashMap<>();
-        HashMap<String, Double> assetStdDevValues = new HashMap<>();
+        double[] assetWeights = new double[positions.size()];
+        double[] assetMeans = new double[positions.size()];
+        double[] assetStdDevs = new double[positions.size()];
 
         for (int index = 0; index < positions.size(); index++) {
-            PortfolioPosition position = positions.get(index);
             var positionReturns = weightedPctChangeReturns.getColumn(index);
-            var mean = positionReturns.meanNumber().doubleValue();
-            var stdDev = positionReturns.stdNumber().doubleValue();
-            assetMeanValues.put(position.getSymbol(), mean);
-            assetStdDevValues.put(position.getSymbol(), stdDev);
+            assetWeights[index] = positions.get(index).getWeight();
+            assetMeans[index] = positionReturns.meanNumber().doubleValue();
+            assetStdDevs[index] = positionReturns.stdNumber().doubleValue();
         }
 
         // #Run parallel Monte Carlo trials
-        double[] assetWeights = positions.stream()
-                .mapToDouble(p -> p.getCurrentValue() / portfolioValue)
-                .toArray();
-        double[] assetMeans = positions.stream()
-                .mapToDouble(p -> assetMeanValues.get(p.getSymbol()))
-                .toArray();
-        double[] assetStdDevs = positions.stream()
-                .mapToDouble(p -> assetStdDevValues.get(p.getSymbol()))
-                .toArray();
-
         double[] trialPortfolioReturns = new double[maxTrialCount];
-        java.util.stream.IntStream.range(0, maxTrialCount).parallel().forEach(index ->
-            trialPortfolioReturns[index] = performSimulationTrial(choleskyLMatrix, assetWeights, assetMeans, assetStdDevs, 1));
+        java.util.stream.IntStream.range(0, maxTrialCount).parallel().forEach(index -> {
+            trialPortfolioReturns[index] = performSimulationTrial(choleskyLMatrix, assetWeights,
+                    assetMeans, assetStdDevs, timeHorizonDays);
+        });
 
         // Sort trial outcomes for percentile extraction (ascending order of returns)
         Arrays.sort(trialPortfolioReturns);
@@ -99,7 +92,8 @@ public class SimulationServices {
     public double performSimulationTrial(SimpleMatrix choleskyL, double[] assetWeights, double[] assetMeans,
                                                   double[] assetStdDevs, int timeHorizonDays) {
         int numAssets = assetWeights.length;
-        Random rand = new Random();
+        //Random rand = new Random();
+        SplittableGenerator rand = SplittableGenerator.of("L64X128MixRandom");
 
         // Generate independent standard normal vector Z (N x 1)
         SimpleMatrix zNormals = new SimpleMatrix(numAssets, 1);
@@ -108,17 +102,16 @@ public class SimulationServices {
 
         SimpleMatrix correlatedShocks = choleskyL.mult(zNormals);
 
-        double portfolioReturn = 0.0;
-        double dt = Math.sqrt(timeHorizonDays); // scaling by horizon time steps
+        double[] portfolioReturn = { 0.0 };
+        final double dt = Math.sqrt(timeHorizonDays); // scaling by horizon time steps
 
         for (int index = 0; index < numAssets; index++) {
             double drift = (assetMeans[index] - 0.5 * Math.pow(assetStdDevs[index], 2)) * timeHorizonDays;
             double shock = correlatedShocks.get(index, 0) * dt;
             double assetReturn = Math.exp(drift + shock) - 1.0;
-
-            portfolioReturn += assetWeights[index] * assetReturn;
+            portfolioReturn[0] += assetWeights[index] * assetReturn;
         }
 
-        return portfolioReturn;
+        return portfolioReturn[0];
     }
 }
