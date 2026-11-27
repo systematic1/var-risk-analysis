@@ -11,6 +11,7 @@ import com.kelly.varengine.services.*;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.*;
 
@@ -62,6 +63,7 @@ public class VarEngineApplication {
             System.out.println();
 
             var response = RunAnalysis(positions);
+            double analysisTimeSec = (double)response.analysisTimeMs() / 1000.0;
 
             System.out.println("                                       Value-At-Risk Analysis Results");
             System.out.println("===========================================================================================================");
@@ -91,6 +93,8 @@ public class VarEngineApplication {
             System.out.printf("* Time Horizon (days):      %d", response.timeHorizonDays());
             System.out.println();
             System.out.printf("* History Lookback (days):  %d", response.historyLookbackDays());
+            System.out.println();
+            System.out.printf("* Analysis Time (sec):      %.4f", analysisTimeSec);
             System.out.println();
 
             System.out.println();
@@ -151,6 +155,8 @@ public class VarEngineApplication {
             dataLoaderService.waitDelayTime();
         }
 
+        long startTime = Instant.now().toEpochMilli();
+
         // Calculate the sum of the portfolio positions
         var portfolioValue = positions.stream()
                 .mapToDouble(PortfolioPosition::getCurrentValue)
@@ -184,9 +190,11 @@ public class VarEngineApplication {
         var parametricMethodData = new ParametricMethod(zScore, 0.0, covariantMatrix, parametricVaRValues);
         var portfolioData = new PortfolioData(portfolioValue, variance, assetWeights, logReturnsMatrix);
 
+        long analysisTimeMs = Instant.now().toEpochMilli() - startTime;
+
         return new AnalysisResponse(
             totalVaR, pctTotalVaR, timeHorizonDays, confidenceLevel, historyLookBackDays, parametricMethodData,
-            portfolioData, monteCarloSimData
+            portfolioData, monteCarloSimData, analysisTimeMs
         );
 
         // Produces the following output:
