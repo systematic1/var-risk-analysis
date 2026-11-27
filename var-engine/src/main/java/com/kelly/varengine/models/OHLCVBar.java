@@ -8,6 +8,10 @@ public class OHLCVBar {
     private double adjClosePrice;
     private int volume;
 
+    // Line Cache Padding
+    private int i1;
+    private long p1, p2;
+
     public OHLCVBar() { }
 
     public OHLCVBar(double openPrice, double highPrice, double lowPrice,
